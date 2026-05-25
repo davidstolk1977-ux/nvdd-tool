@@ -55,23 +55,24 @@ const PREP_PROMPT = (name, background, topic, topicDesc, voorgesprek, andereGast
 Programmaprofiel: ${SHOW_PROFILE}
 
 Gast: ${name} — ${background}
-${andereGasten ? `Andere gasten in het item: ${andereGasten}` : ""}
+${andereGasten ? `Andere gasten in dit item — verwerk ook wat zij over dit onderwerp zeggen: ${andereGasten}` : ""}
 Onderwerp: ${topic}
 Context: ${topicDesc}
-${voorgesprek ? `\nVoorgesprek redacteur met gast — gebruik dit als basis voor de antwoorden:\n${voorgesprek}` : ""}
+${voorgesprek ? `\nVoorgesprek redacteur met gast — verwerk de antwoorden letterlijk in de opzet:\n${voorgesprek}` : ""}
 
-Maak een gespreksopzet volgens dit strikte format:
+Maak een gespreksopzet volgens de werkwijze van Thomas van Groningen (presentator SBS6).
 
-REGELS:
-- Werk met ANTWOORDEN, niet met vragen. Schrijf op wat de gast gaat zeggen, niet wat je hem vraagt. Denkwijze is omgekeerd: wat IS het antwoord?
-- Regie-aanwijzingen tussen haakjes (( )) — dit staat NIET in de autocue van de presentator
-- Beeldtekst van panels of cijfers WEL uitschrijven zonder haakjes — presentator leest dit mee
-- Kort en beeldend. Geen omhaal.
-- Als er een voorgesprek is: verwerk de antwoorden van de gast letterlijk in de bulletpoints
+STRIKTE REGELS:
+- Schrijf ANTWOORDEN, nooit vragen. Thomas weet wat de gast gaat zeggen — de vragen komen vanzelf.
+- Regie-aanwijzingen tussen (( )) — staat NIET in de autocue
+- Beeldvullertekst (panel, cijfers) WEL uitschrijven zonder haakjes — Thomas leest dit mee
+- Maak het onderwerp zo BEELDEND mogelijk — geef 4 concrete beeldsuggesties die vroeg op de dag verzameld kunnen worden en monteerbaar zijn. Denk aan locaties, mensen, situaties, archief.
+- Als er andere gasten zijn: verwerk ook wat zij zeggen over hetzelfde onderwerp
+- Kort en scherp. Geen omhaal.
 
 Geef ALLEEN een JSON-object terug, niets anders. Geen uitleg, geen markdown, geen backticks.
 
-{"pr_intro":"De PRES-tekst: aankondiging van het item door de presentator. Direct, prikkelend, eindigend met een haakje naar het gesprek. Regie-aanwijzingen tussen (( )).","segmenten":[{"label":"INSTART [korte naam segment]","inhoud":"Bulletpoints met wat de gast ZEGT — antwoorden, niet vragen. Regie tussen (( )). Beeldtekst panels/cijfers uitgeschreven."},{"label":"INSTART [volgend segment]","inhoud":"..."},{"label":"OVERSTART of AFSLUITING","inhoud":"Slotalinea — wat blijft hangen. Eventueel BV (beeldvuller) uitgeschreven."}],"bv_suggesties":["Panel of cijfer suggestie 1 — uitgeschreven tekst zoals op beeld","Suggestie 2"],"beeld_instructie":"(( Regie-instructie: wat zien we op beeld, studio-opstelling, inzetjes ))"}`;
+{"pr_intro":"PRES-tekst: aankondiging door presentator. Direct en prikkelend. Regie-aanwijzingen tussen (( )). Eindigt met haakje naar het gesprek.","segmenten":[{"label":"INSTART [naam segment]","inhoud":"Bulletpoints met wat de gast ZEGT. Antwoorden, geen vragen. Regie tussen (( )). Beeldvullertekst uitgeschreven."},{"label":"INSTART [volgend segment]","inhoud":"..."},{"label":"OVERSTART of AFSLUITING","inhoud":"Wat blijft hangen. Eventueel BV uitgeschreven."}],"beeld":["Beeldsuggestie 1 — concreet: wat zie je, waar gefilmd, waarom monteerbaar","Suggestie 2","Suggestie 3","Suggestie 4"],"bv_suggesties":["Panel of cijfer 1 — uitgeschreven tekst zoals op beeld","Suggestie 2"]}`;
 
 function extractJSON(text) {
   const start1 = text.indexOf('[');
@@ -320,18 +321,25 @@ export default function App() {
               <div style={{ fontSize: 15, lineHeight: 1.8 }}>{prep.pr_intro}</div>
             </Blk>
 
-            <Blk label="Beeldinstructie">
-              <div style={{ fontSize: 13, lineHeight: 1.7, color: C.muted }}>{prep.beeld_instructie}</div>
-            </Blk>
-
             {prep.segmenten?.map((s, i) => (
               <Blk key={i} label={s.label}>
                 <div style={{ fontSize: 13, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{s.inhoud}</div>
               </Blk>
             ))}
 
+            {prep.beeld?.length > 0 && (
+              <Blk label="Beeld — Suggesties voor opnames">
+                {prep.beeld.map((b, i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+                    <span style={{ color: C.red, fontFamily: "monospace", fontSize: 10, minWidth: 20, paddingTop: 2 }}>#{i + 1}</span>
+                    <span style={{ fontSize: 13, lineHeight: 1.55, color: C.muted }}>{b}</span>
+                  </div>
+                ))}
+              </Blk>
+            )}
+
             {prep.bv_suggesties?.length > 0 && (
-              <Blk label="BV — Beeldvuller / panel suggesties">
+              <Blk label="BV — Beeldvuller / panel">
                 {prep.bv_suggesties.map((b, i) => (
                   <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8 }}>
                     <span style={{ color: C.red, fontFamily: "monospace", fontSize: 10, minWidth: 20, paddingTop: 2 }}>#{i + 1}</span>
