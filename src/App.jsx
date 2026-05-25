@@ -162,10 +162,14 @@ export default function App() {
     doTopics(r);
   };
 
-  const doPrep = async (t) => {
-    if (loadP) return;
-    setSel(t); setPrep(null); setLoadP(true); setErr("");
-    try { setPrep(await callClaude(PREP_PROMPT(name, bg, t.titel, t.omschrijving, voorgesprek, andereGasten))); }
+  const doSelectTopic = (t) => {
+    setSel(t); setPrep(null); setErr("");
+  };
+
+  const doPrep = async () => {
+    if (!sel || loadP) return;
+    setPrep(null); setLoadP(true); setErr("");
+    try { setPrep(await callClaude(PREP_PROMPT(name, bg, sel.titel, sel.omschrijving, voorgesprek, andereGasten))); }
     catch (e) { setErr(e.message); }
     setLoadP(false);
   };
@@ -256,6 +260,18 @@ export default function App() {
           />
         </Fld>
 
+        {sel && (
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace", marginBottom: 10 }}>
+              Geselecteerd: <span style={{ color: C.red }}>{sel.titel}</span>
+            </div>
+            <button onClick={doPrep} disabled={loadP}
+              style={{ background: !loadP ? C.red : C.redDark, border: "none", color: C.white, padding: "11px 26px", fontSize: 10, letterSpacing: 3, fontFamily: "monospace", textTransform: "uppercase", cursor: !loadP ? "pointer" : "not-allowed" }}>
+              {loadP ? "Bezig..." : "Genereer gespreksopzet →"}
+            </button>
+          </div>
+        )}
+
         {err && (
           <div style={{ marginTop: 16, color: C.red, fontSize: 11, fontFamily: "monospace", padding: "10px 14px", border: `1px solid ${C.redDark}`, background: "#1a0808", wordBreak: "break-all" }}>
             ⚠ {err}
@@ -276,7 +292,7 @@ export default function App() {
               {topics.map((t, i) => {
                 const active = sel?.titel === t.titel;
                 return (
-                  <div key={i} onClick={() => doPrep(t)}
+                  <div key={i} onClick={() => doSelectTopic(t)}
                     style={{ background: active ? "#1e0a08" : C.surface, border: `1px solid ${active ? C.red : C.border}`, padding: 18, cursor: "pointer" }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: active ? C.red : C.white, marginBottom: 8, lineHeight: 1.4 }}>{t.titel}</div>
                     <div style={{ fontSize: 12, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>{t.omschrijving}</div>
