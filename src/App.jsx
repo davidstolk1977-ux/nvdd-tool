@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const VANDAAG = new Date().toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" });
 
@@ -8,21 +8,36 @@ Wij zeggen wat andere media niet zeggen. Geen politieke correctheid, geen omhaal
 Scherp, eerlijk, herkenbaar. De kijker denkt: "eindelijk zegt iemand het."
 Huidig kabinet: kabinet-Jetten (D66, VVD, CDA), premier Rob Jetten, sinds 23 februari 2026.`;
 
+async function fetchNieuws() {
+  const rss = "https://www.nu.nl/rss/algemeen";
+  const proxy = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rss)}`;
+  const res = await fetch(proxy);
+  const data = await res.json();
+  if (!data.items || data.items.length === 0) throw new Error("Geen nieuws");
+  return data.items
+    .slice(0, 20)
+    .map(item => `- ${item.title} (Nu.nl, ${item.pubDate?.slice(0, 10) || ""})`)
+    .join("\n");
+}
+
 const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
 
-const TOPICS_PROMPT = (name, background, nieuws, ronde) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
+const TOPICS_PROMPT = (name, background, nieuws, ronde, eigenInput) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
 Programmaprofiel: ${SHOW_PROFILE}
 
-Actueel nieuws van vandaag (ingevoerd door de redactie):
+Actueel nieuws van vandaag (automatisch opgehaald van Nu.nl):
 ${nieuws}
+
+${eigenInput ? `Eigen sturing van de redactie (prioriteit — houd hier rekening mee bij de onderwerpen):
+${eigenInput}` : ""}
 
 Gast: ${name}
 Achtergrond/expertise: ${background}
 
 ${ronde > 1 ? `Dit is ronde ${ronde} — geef 4 ANDERE onderwerpen dan eerder, vanuit een andere invalshoek.` : ""}
 
-Kies 4 onderwerpen uit bovenstaand nieuws die passen bij deze gast en bij het profiel van het programma. Koppel elk onderwerp aan een concreet nieuwsfeit. Geen vage thema's.
+Kies 4 onderwerpen die passen bij deze gast en bij het profiel van het programma. Koppel elk onderwerp aan een concreet nieuwsfeit. Geen vage thema's.
 
 Geef ALLEEN een JSON-array terug, niets anders. Geen uitleg, geen markdown, geen backticks.
 
@@ -95,6 +110,8 @@ export default function App() {
   const [name, setName] = useState("");
   const [bg, setBg] = useState("");
   const [nieuws, setNieuws] = useState("");
+  const [eigenInput, setEigenInput] = useState("");
+  const [nieuwsStatus, setNieuwsStatus] = useState("laden");
   const [topics, setTopics] = useState(null);
   const [sel, setSel] = useState(null);
   const [prep, setPrep] = useState(null);
@@ -103,12 +120,18 @@ export default function App() {
   const [err, setErr] = useState("");
   const [ronde, setRonde] = useState(1);
 
-  const canGo = name.trim().length > 1 && bg.trim().length > 4 && nieuws.trim().length > 20;
+  useEffect(() => {
+    fetchNieuws()
+      .then(n => { setNieuws(n); setNieuwsStatus("ok"); })
+      .catch(() => setNieuwsStatus("fout"));
+  }, []);
+
+  const canGo = name.trim().length > 1 && bg.trim().length > 4 && nieuwsStatus === "ok";
 
   const doTopics = async (r) => {
     if (!canGo || loadT) return;
     setLoadT(true); setTopics(null); setSel(null); setPrep(null); setErr("");
-    try { setTopics(await callClaude(TOPICS_PROMPT(name, bg, nieuws, r))); }
+    try { setTopics(await callClaude(TOPICS_PROMPT(name, bg, nieuws, r, eigenInput))); }
     catch (e) { setErr(e.message); }
     setLoadT(false);
   };
@@ -127,7 +150,7 @@ export default function App() {
     setLoadP(false);
   };
 
-  const reset = () => { setName(""); setBg(""); setNieuws(""); setTopics(null); setSel(null); setPrep(null); setErr(""); setRonde(1); };
+  const reset = () => { setName(""); setBg(""); setEigenInput(""); setTopics(null); setSel(null); setPrep(null); setErr(""); setRonde(1); };
 
   return (
     <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Georgia, serif", color: C.white }}>
@@ -147,17 +170,22 @@ export default function App() {
       <div style={{ maxWidth: 840, margin: "0 auto", padding: "36px 22px" }}>
 
         <Lbl>01 — Nieuws van vandaag</Lbl>
-        <div style={{ fontSize: 12, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>
-          Kopieer een paar nieuwskoppen van NOS.nl, Telegraaf.nl of een andere bron en plak ze hier. Één kopje per regel.
+        <div style={{ fontSize: 12, color: nieuwsStatus === "ok" ? C.muted : nieuwsStatus === "fout" ? C.red : C.muted, marginBottom: 16, fontFamily: "monospace" }}>
+          {nieuwsStatus === "laden" && "⏳ Nieuws ophalen van Nu.nl..."}
+          {nieuwsStatus === "ok" && "✓ Actueel nieuws geladen van Nu.nl"}
+          {nieuwsStatus === "fout" && "⚠ Kon nieuws niet ophalen — probeer de pagina te verversen"}
         </div>
-        <textarea
-          value={nieuws}
-          onChange={e => { setNieuws(e.target.value); setTopics(null); setSel(null); setPrep(null); }}
-          placeholder={"- Kabinet-Jetten presenteert bezuinigingsplan van 4 miljard\n- Meer asielzoekers dan opvangplekken in Ter Apel\n- Wapenbezit onder jongeren gestegen met 22 procent"}
-          style={{ ...inp, minHeight: 120, resize: "vertical", lineHeight: 1.6 }}
-        />
 
-        <div style={{ height: 28 }} />
+        <Fld label="Eigen input / sturing (optioneel)">
+          <textarea
+            value={eigenInput}
+            onChange={e => { setEigenInput(e.target.value); setTopics(null); setSel(null); setPrep(null); }}
+            placeholder={"Bijv: we willen het hebben over de stijgende huurprijzen, of: gast heeft net een boek uit over immigratie"}
+            style={{ ...inp, minHeight: 70, resize: "vertical", lineHeight: 1.6 }}
+          />
+        </Fld>
+
+        <div style={{ height: 24 }} />
 
         <Lbl>02 — Gast invoeren</Lbl>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12, marginBottom: 14 }}>
