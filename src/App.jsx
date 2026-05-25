@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 const VANDAAG = new Date().toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" });
 
@@ -8,24 +8,13 @@ Wij zeggen wat andere media niet zeggen. Geen politieke correctheid, geen omhaal
 Scherp, eerlijk, herkenbaar. De kijker denkt: "eindelijk zegt iemand het."
 Huidig kabinet: kabinet-Jetten (D66, VVD, CDA), premier Rob Jetten, sinds 23 februari 2026.`;
 
-const NEWSAPI_KEY = import.meta.env.VITE_NEWSAPI_KEY;
 const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
-
-async function fetchNieuws() {
-  const res = await fetch("/api/nieuws");
-  const data = await res.json();
-  if (!data.articles) throw new Error("Geen nieuws opgehaald");
-  return data.articles
-    .filter(a => a.title && a.title !== "[Removed]")
-    .map(a => `- ${a.title} (${a.source?.name || "onbekend"}, ${a.publishedAt?.slice(0, 10) || ""})`)
-    .join("\n");
-}
 
 const TOPICS_PROMPT = (name, background, nieuws, ronde) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
 Programmaprofiel: ${SHOW_PROFILE}
 
-Actueel Nederlands nieuws van vandaag:
+Actueel nieuws van vandaag (ingevoerd door de redactie):
 ${nieuws}
 
 Gast: ${name}
@@ -37,7 +26,7 @@ Kies 4 onderwerpen uit bovenstaand nieuws die passen bij deze gast en bij het pr
 
 Geef ALLEEN een JSON-array terug, niets anders. Geen uitleg, geen markdown, geen backticks.
 
-[{"titel":"...","omschrijving":"...","profiel":"...","bron":"Naam medium en datum uit het nieuws hierboven"}]`;
+[{"titel":"...","omschrijving":"...","profiel":"...","bron":"Bron zoals vermeld in het nieuws"}]`;
 
 const PREP_PROMPT = (name, background, topic, topicDesc) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
@@ -106,7 +95,6 @@ export default function App() {
   const [name, setName] = useState("");
   const [bg, setBg] = useState("");
   const [nieuws, setNieuws] = useState("");
-  const [nieuwsStatus, setNieuwsStatus] = useState("laden");
   const [topics, setTopics] = useState(null);
   const [sel, setSel] = useState(null);
   const [prep, setPrep] = useState(null);
@@ -115,17 +103,10 @@ export default function App() {
   const [err, setErr] = useState("");
   const [ronde, setRonde] = useState(1);
 
-  useEffect(() => {
-    fetchNieuws()
-      .then(n => { setNieuws(n); setNieuwsStatus("ok"); })
-      .catch(() => setNieuwsStatus("fout"));
-  }, []);
+  const canGo = name.trim().length > 1 && bg.trim().length > 4 && nieuws.trim().length > 20;
 
-  const canGo = name.trim().length > 1 && bg.trim().length > 4 && nieuwsStatus === "ok";
-
-  const doTopics = async (nieuweRonde) => {
+  const doTopics = async (r) => {
     if (!canGo || loadT) return;
-    const r = nieuweRonde || ronde;
     setLoadT(true); setTopics(null); setSel(null); setPrep(null); setErr("");
     try { setTopics(await callClaude(TOPICS_PROMPT(name, bg, nieuws, r))); }
     catch (e) { setErr(e.message); }
@@ -146,7 +127,7 @@ export default function App() {
     setLoadP(false);
   };
 
-  const reset = () => { setName(""); setBg(""); setTopics(null); setSel(null); setPrep(null); setErr(""); setRonde(1); };
+  const reset = () => { setName(""); setBg(""); setNieuws(""); setTopics(null); setSel(null); setPrep(null); setErr(""); setRonde(1); };
 
   return (
     <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Georgia, serif", color: C.white }}>
@@ -156,9 +137,7 @@ export default function App() {
             <span style={{ fontSize: 19, fontWeight: 700, letterSpacing: 2, color: C.red, textTransform: "uppercase" }}>Nieuws van de Dag</span>
             <span style={{ fontSize: 10, letterSpacing: 4, color: C.muted, fontFamily: "monospace", textTransform: "uppercase" }}>SBS6</span>
           </div>
-          <div style={{ fontSize: 10, color: C.dim, letterSpacing: 3, marginTop: 2, fontFamily: "monospace", textTransform: "uppercase" }}>
-            Redactietool · {VANDAAG} · Nieuws: {nieuwsStatus === "ok" ? "✓ geladen" : nieuwsStatus === "laden" ? "laden..." : "⚠ fout"}
-          </div>
+          <div style={{ fontSize: 10, color: C.dim, letterSpacing: 3, marginTop: 2, fontFamily: "monospace", textTransform: "uppercase" }}>Redactietool · {VANDAAG}</div>
         </div>
         {(name || topics) && (
           <button onClick={reset} style={{ background: "none", border: `1px solid ${C.border}`, color: C.muted, padding: "5px 14px", cursor: "pointer", fontSize: 10, letterSpacing: 2, fontFamily: "monospace", textTransform: "uppercase" }}>Nieuw</button>
@@ -167,7 +146,20 @@ export default function App() {
 
       <div style={{ maxWidth: 840, margin: "0 auto", padding: "36px 22px" }}>
 
-        <Lbl>01 — Gast invoeren</Lbl>
+        <Lbl>01 — Nieuws van vandaag</Lbl>
+        <div style={{ fontSize: 12, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>
+          Kopieer een paar nieuwskoppen van NOS.nl, Telegraaf.nl of een andere bron en plak ze hier. Één kopje per regel.
+        </div>
+        <textarea
+          value={nieuws}
+          onChange={e => { setNieuws(e.target.value); setTopics(null); setSel(null); setPrep(null); }}
+          placeholder={"- Kabinet-Jetten presenteert bezuinigingsplan van 4 miljard\n- Meer asielzoekers dan opvangplekken in Ter Apel\n- Wapenbezit onder jongeren gestegen met 22 procent"}
+          style={{ ...inp, minHeight: 120, resize: "vertical", lineHeight: 1.6 }}
+        />
+
+        <div style={{ height: 28 }} />
+
+        <Lbl>02 — Gast invoeren</Lbl>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12, marginBottom: 14 }}>
           <Fld label="Naam gast">
             <input value={name} onChange={e => { setName(e.target.value); setTopics(null); setSel(null); setPrep(null); }} placeholder="bijv. Wierd Duk" style={inp} />
@@ -190,7 +182,7 @@ export default function App() {
         {topics && (
           <div style={{ marginTop: 36 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-              <Lbl>02 — Kies een onderwerp</Lbl>
+              <Lbl>03 — Kies een onderwerp</Lbl>
               <button onClick={doNieuweRonde} disabled={loadT}
                 style={{ background: "none", border: `1px solid ${C.border}`, color: C.muted, padding: "5px 14px", cursor: loadT ? "not-allowed" : "pointer", fontSize: 10, letterSpacing: 2, fontFamily: "monospace", textTransform: "uppercase" }}>
                 {loadT ? "Bezig..." : "↺ Andere onderwerpen"}
@@ -217,7 +209,7 @@ export default function App() {
 
         {prep && sel && (
           <div style={{ marginTop: 36 }}>
-            <Lbl>03 — Gespreksopzet</Lbl>
+            <Lbl>04 — Gespreksopzet</Lbl>
             <div style={{ borderLeft: `3px solid ${C.red}`, paddingLeft: 16, marginBottom: 24 }}>
               <div style={{ fontSize: 17, fontWeight: 700 }}>{sel.titel}</div>
               <div style={{ fontSize: 11, color: C.muted, marginTop: 4, fontFamily: "monospace" }}>{name} · {bg}</div>
