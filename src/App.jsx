@@ -7,35 +7,22 @@ De toon is direct, opiniërend en informeel — voor de gewone man.
 Wij zeggen wat andere media niet zeggen. Geen politieke correctheid, geen omhaal.
 Scherp, eerlijk, herkenbaar. De kijker denkt: "eindelijk zegt iemand het."`;
 
-const TOPICS_PROMPT = (name, background) => `
-Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
+const TOPICS_PROMPT = (name, background) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
 Programmaprofiel: ${SHOW_PROFILE}
 
 Gast: ${name}
 Achtergrond/expertise: ${background}
 
-Zoek naar het allerlaatste nieuws van vandaag in Nederland dat relevant is voor deze gast.
-Genereer precies 4 ACTUELE gespreksonderwerpen — geen standaard thema's, maar concrete nieuws van deze week.
+Genereer precies 4 ACTUELE gespreksonderwerpen voor deze gast. Gebaseerd op echt recent Nederlands nieuws van de afgelopen dagen. Geen standaard thema's.
 
-Elk onderwerp moet:
-- Gebaseerd zijn op echt recent nieuws (noem het nieuwsfeit concreet)
-- Aansluiten bij de expertise van de gast
-- Passen bij de toon: direct, opiniërend, voor de gewone man
-- Iets zeggen wat andere media niet durven of anders framen
+Elk onderwerp moet aansluiten bij de expertise van de gast, passen bij de toon (direct, opiniërend, voor de gewone man) en iets zeggen wat andere media niet durven.
 
-Geef je antwoord als een JSON-array. Begin direct met [ en eindig met ]. Geen tekst voor of na de array. Geen markdown, geen backticks.
+Geef ALLEEN een JSON-array terug, niets anders. Geen uitleg, geen markdown, geen backticks. Puur de array.
 
-[
-  {
-    "titel": "Pakkende titel (max 8 woorden)",
-    "omschrijving": "Het concrete nieuwsfeit en waarom het nu speelt.",
-    "profiel": "Wat zegt Nieuws van de Dag hierover wat andere media niet zeggen?"
-  }
-]`;
+[{"titel":"...","omschrijving":"...","profiel":"...","bron":"Naam van medium of nieuwsfeit waarop dit gebaseerd is, bijv. NOS 23 mei of RTL Nieuws 24 mei"}]`;
 
-const PREP_PROMPT = (name, background, topic, topicDesc) => `
-Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
+const PREP_PROMPT = (name, background, topic, topicDesc) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
 Programmaprofiel: ${SHOW_PROFILE}
 
@@ -43,22 +30,33 @@ Gast: ${name} — ${background}
 Onderwerp: ${topic}
 Context: ${topicDesc}
 
-Maak een gespreksvoorbereiding. Begin direct met { en eindig met }. Geen tekst voor of na het object. Geen markdown, geen backticks.
+Geef ALLEEN een JSON-object terug, niets anders. Geen uitleg, geen markdown, geen backticks. Puur het object.
 
-{
-  "pr_intro": "Introtekst die de presentator uitspreekt bij aankondiging van het item. 2-3 zinnen. Direct en prikkelend voor de gewone man. Eindig met haakje naar de gast.",
-  "intro_beeld": "Beeldinstructie voor de regisseur: wat zien we op beeld, sfeer, studio-opstelling of grafisch element.",
-  "grafisch": ["Graphic/foto suggestie 1", "Suggestie 2", "Suggestie 3"],
-  "gesprekslijnen": [
-    {"vraag": "Eerste vraag", "toelichting": "Wat moet eruit komen?"},
-    {"vraag": "Tweede vraag", "toelichting": "Waarom belangrijk voor ons profiel?"},
-    {"vraag": "Derde vraag", "toelichting": "Scherpte — wat andere media niet vragen"},
-    {"vraag": "Vierde vraag", "toelichting": "Verdieping of concrete stelling voorleggen"},
-    {"vraag": "Afsluiter", "toelichting": "Laat de gast iets zeggen dat de kijker bijblijft."}
-  ]
-}`;
+{"pr_intro":"Introtekst presentator: 2-3 zinnen, direct en prikkelend voor de gewone man, eindig met haakje naar de gast.","intro_beeld":"Beeldinstructie regisseur: wat zien we op beeld, sfeer of studio-opstelling.","grafisch":["Suggestie 1","Suggestie 2","Suggestie 3"],"gesprekslijnen":[{"vraag":"Eerste vraag","toelichting":"Wat moet eruit komen?"},{"vraag":"Tweede vraag","toelichting":"Waarom belangrijk voor ons profiel?"},{"vraag":"Derde vraag","toelichting":"Wat andere media niet vragen"},{"vraag":"Vierde vraag","toelichting":"Verdieping of stelling voorleggen"},{"vraag":"Afsluiter","toelichting":"Laat de gast iets zeggen dat blijft hangen."}]}`;
 
 const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
+
+function extractJSON(text) {
+  // Try to find array first, then object
+  let match = text.match(/\[[\s\S]*\]/);
+  if (match) {
+    // Find the last ] to avoid cutting off
+    const start = text.indexOf('[');
+    const end = text.lastIndexOf(']');
+    if (start !== -1 && end !== -1) {
+      try { return JSON.parse(text.slice(start, end + 1)); } catch {}
+    }
+  }
+  match = text.match(/\{[\s\S]*\}/);
+  if (match) {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start !== -1 && end !== -1) {
+      try { return JSON.parse(text.slice(start, end + 1)); } catch {}
+    }
+  }
+  throw new Error(`Kon JSON niet verwerken. Antwoord: ${text.slice(0, 200)}`);
+}
 
 async function callClaude(prompt) {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -71,7 +69,7 @@ async function callClaude(prompt) {
     },
     body: JSON.stringify({
       model: "claude-sonnet-4-6",
-      max_tokens: 1500,
+      max_tokens: 2000,
       messages: [{ role: "user", content: prompt }],
     }),
   });
@@ -85,12 +83,7 @@ async function callClaude(prompt) {
   if (data.error) throw new Error(data.error.message);
 
   const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
-  const arrMatch = text.match(/\[[\s\S]*\]/);
-  const objMatch = text.match(/\{[\s\S]*\}/);
-  const jsonStr = arrMatch || objMatch;
-  if (!jsonStr) throw new Error(`Geen JSON gevonden. Antwoord: ${text.slice(0, 150)}`);
-
-  return JSON.parse(jsonStr[0]);
+  return extractJSON(text);
 }
 
 const C = {
@@ -163,12 +156,12 @@ export default function App() {
         </div>
         <button onClick={doTopics} disabled={!canGo || loadT}
           style={{ background: canGo && !loadT ? C.red : C.redDark, border: "none", color: C.white, padding: "11px 26px", fontSize: 10, letterSpacing: 3, fontFamily: "monospace", textTransform: "uppercase", cursor: canGo && !loadT ? "pointer" : "not-allowed" }}>
-          {loadT ? "Bezig met ophalen..." : "Genereer actuele onderwerpen →"}
+          {loadT ? "Bezig..." : "Genereer actuele onderwerpen →"}
         </button>
 
         {err && (
           <div style={{ marginTop: 16, color: C.red, fontSize: 11, fontFamily: "monospace", padding: "10px 14px", border: `1px solid ${C.redDark}`, background: "#1a0808", wordBreak: "break-all" }}>
-            {err}
+            ⚠ {err}
           </div>
         )}
 
@@ -182,7 +175,10 @@ export default function App() {
                   <div key={i} onClick={() => doPrep(t)}
                     style={{ background: active ? "#1e0a08" : C.surface, border: `1px solid ${active ? C.red : C.border}`, padding: 18, cursor: "pointer" }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: active ? C.red : C.white, marginBottom: 8, lineHeight: 1.4 }}>{t.titel}</div>
-                    <div style={{ fontSize: 12, color: C.muted, marginBottom: 12, lineHeight: 1.6 }}>{t.omschrijving}</div>
+                    <div style={{ fontSize: 12, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>{t.omschrijving}</div>
+                    {t.bron && (
+                      <div style={{ fontSize: 10, color: C.dim, fontFamily: "monospace", marginBottom: 10 }}>📰 {t.bron}</div>
+                    )}
                     <div style={{ fontSize: 10, color: C.red, fontFamily: "monospace", lineHeight: 1.5, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>↗ {t.profiel}</div>
                   </div>
                 );
