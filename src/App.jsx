@@ -50,17 +50,28 @@ Geef ALLEEN een JSON-array terug, niets anders. Geen uitleg, geen markdown, geen
 
 [{"titel":"Pakkende stelling of vraag (max 8 woorden)","omschrijving":"Wat is de werkelijke kern — het nieuwsfeit plus de scherpe invalshoek die wij kiezen.","profiel":"Wat zegt Nieuws van de Dag hierover wat andere media weglaten of niet durven?","bron":"Welk nieuwsfeit of welke feiten liggen hieraan ten grondslag?"}]`;
 
-const PREP_PROMPT = (name, background, topic, topicDesc) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
+const PREP_PROMPT = (name, background, topic, topicDesc, voorgesprek, andereGasten) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
 Programmaprofiel: ${SHOW_PROFILE}
 
 Gast: ${name} — ${background}
+${andereGasten ? `Andere gasten in het item: ${andereGasten}` : ""}
 Onderwerp: ${topic}
 Context: ${topicDesc}
+${voorgesprek ? `\nVoorgesprek redacteur met gast — gebruik dit als basis voor de antwoorden:\n${voorgesprek}` : ""}
+
+Maak een gespreksopzet volgens dit strikte format:
+
+REGELS:
+- Werk met ANTWOORDEN, niet met vragen. Schrijf op wat de gast gaat zeggen, niet wat je hem vraagt. Denkwijze is omgekeerd: wat IS het antwoord?
+- Regie-aanwijzingen tussen haakjes (( )) — dit staat NIET in de autocue van de presentator
+- Beeldtekst van panels of cijfers WEL uitschrijven zonder haakjes — presentator leest dit mee
+- Kort en beeldend. Geen omhaal.
+- Als er een voorgesprek is: verwerk de antwoorden van de gast letterlijk in de bulletpoints
 
 Geef ALLEEN een JSON-object terug, niets anders. Geen uitleg, geen markdown, geen backticks.
 
-{"pr_intro":"Introtekst presentator: 2-3 zinnen, direct en prikkelend voor de gewone man, eindig met haakje naar de gast.","intro_beeld":"Beeldinstructie regisseur: wat zien we op beeld, sfeer of studio-opstelling.","grafisch":["Suggestie 1","Suggestie 2","Suggestie 3"],"gesprekslijnen":[{"vraag":"Eerste vraag","toelichting":"Wat moet eruit komen?"},{"vraag":"Tweede vraag","toelichting":"Waarom belangrijk voor ons profiel?"},{"vraag":"Derde vraag","toelichting":"Wat andere media niet vragen"},{"vraag":"Vierde vraag","toelichting":"Verdieping of stelling voorleggen"},{"vraag":"Afsluiter","toelichting":"Laat de gast iets zeggen dat blijft hangen."}]}`;
+{"pr_intro":"De PRES-tekst: aankondiging van het item door de presentator. Direct, prikkelend, eindigend met een haakje naar het gesprek. Regie-aanwijzingen tussen (( )).","segmenten":[{"label":"INSTART [korte naam segment]","inhoud":"Bulletpoints met wat de gast ZEGT — antwoorden, niet vragen. Regie tussen (( )). Beeldtekst panels/cijfers uitgeschreven."},{"label":"INSTART [volgend segment]","inhoud":"..."},{"label":"OVERSTART of AFSLUITING","inhoud":"Slotalinea — wat blijft hangen. Eventueel BV (beeldvuller) uitgeschreven."}],"bv_suggesties":["Panel of cijfer suggestie 1 — uitgeschreven tekst zoals op beeld","Suggestie 2"],"beeld_instructie":"(( Regie-instructie: wat zien we op beeld, studio-opstelling, inzetjes ))"}`;
 
 function extractJSON(text) {
   const start1 = text.indexOf('[');
@@ -116,6 +127,8 @@ const inp = {
 export default function App() {
   const [name, setName] = useState("");
   const [bg, setBg] = useState("");
+  const [voorgesprek, setVoorgesprek] = useState("");
+  const [andereGasten, setAndereGasten] = useState("");
   const [nieuws, setNieuws] = useState("");
   const [eigenInput, setEigenInput] = useState("");
   const [nieuwsStatus, setNieuwsStatus] = useState("laden");
@@ -152,12 +165,12 @@ export default function App() {
   const doPrep = async (t) => {
     if (loadP) return;
     setSel(t); setPrep(null); setLoadP(true); setErr("");
-    try { setPrep(await callClaude(PREP_PROMPT(name, bg, t.titel, t.omschrijving))); }
+    try { setPrep(await callClaude(PREP_PROMPT(name, bg, t.titel, t.omschrijving, voorgesprek, andereGasten))); }
     catch (e) { setErr(e.message); }
     setLoadP(false);
   };
 
-  const reset = () => { setName(""); setBg(""); setEigenInput(""); setTopics(null); setSel(null); setPrep(null); setErr(""); setRonde(1); };
+  const reset = () => { setName(""); setBg(""); setEigenInput(""); setVoorgesprek(""); setAndereGasten(""); setTopics(null); setSel(null); setPrep(null); setErr(""); setRonde(1); };
 
   return (
     <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Georgia, serif", color: C.white }}>
@@ -218,6 +231,31 @@ export default function App() {
           {loadT ? "Bezig..." : "Genereer actuele onderwerpen →"}
         </button>
 
+        <div style={{ height: 28 }} />
+
+        {/* VOORGESPREK */}
+        <Lbl>03 — Voorgesprek & andere gasten (optioneel)</Lbl>
+        <div style={{ fontSize: 11, color: C.muted, marginBottom: 10, fontFamily: "monospace" }}>
+          Vul dit in nadat je een onderwerp gekozen hebt — wordt verwerkt in de opzet
+        </div>
+        <Fld label="Voorgesprek redacteur met gast">
+          <textarea
+            value={voorgesprek}
+            onChange={e => setVoorgesprek(e.target.value)}
+            placeholder={"Bijv:\nR: Wat vind je van de nieuwe huurwet?\nG: Ik denk dat het averechts werkt, huurders zijn er slechter af\nR: Waarom?\nG: Omdat verhuurders massaal stoppen..."}
+            style={{ ...inp, minHeight: 100, resize: "vertical", lineHeight: 1.6 }}
+          />
+        </Fld>
+        <div style={{ height: 12 }} />
+        <Fld label="Andere gasten in het item (optioneel)">
+          <input
+            value={andereGasten}
+            onChange={e => setAndereGasten(e.target.value)}
+            placeholder="bijv. Verslaggever Suzette Nesselaar vanuit Den Haag"
+            style={inp}
+          />
+        </Fld>
+
         {err && (
           <div style={{ marginTop: 16, color: C.red, fontSize: 11, fontFamily: "monospace", padding: "10px 14px", border: `1px solid ${C.redDark}`, background: "#1a0808", wordBreak: "break-all" }}>
             ⚠ {err}
@@ -228,7 +266,7 @@ export default function App() {
         {topics && (
           <div style={{ marginTop: 36 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-              <Lbl>03 — Kies een onderwerp</Lbl>
+              <Lbl>04 — Kies een onderwerp</Lbl>
               <button onClick={doNieuweRonde} disabled={loadT}
                 style={{ background: "none", border: `1px solid ${C.border}`, color: C.muted, padding: "5px 14px", cursor: loadT ? "not-allowed" : "pointer", fontSize: 10, letterSpacing: 2, fontFamily: "monospace", textTransform: "uppercase" }}>
                 {loadT ? "Bezig..." : "↺ Andere onderwerpen"}
@@ -256,37 +294,36 @@ export default function App() {
         {/* GESPREKSOPZET */}
         {prep && sel && (
           <div style={{ marginTop: 36 }}>
-            <Lbl>04 — Gespreksopzet</Lbl>
+            <Lbl>05 — Gespreksopzet</Lbl>
             <div style={{ borderLeft: `3px solid ${C.red}`, paddingLeft: 16, marginBottom: 24 }}>
               <div style={{ fontSize: 17, fontWeight: 700 }}>{sel.titel}</div>
-              <div style={{ fontSize: 11, color: C.muted, marginTop: 4, fontFamily: "monospace" }}>{name} · {bg}</div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 4, fontFamily: "monospace" }}>{name}{andereGasten ? ` · ${andereGasten}` : ""}</div>
             </div>
 
-            <Blk label="PR — Introtekst presentator">
-              <div style={{ fontSize: 15, lineHeight: 1.8, fontStyle: "italic" }}>"{prep.pr_intro}"</div>
+            <Blk label="PRES — Aankondiging presentator">
+              <div style={{ fontSize: 15, lineHeight: 1.8 }}>{prep.pr_intro}</div>
             </Blk>
 
-            <Blk label="Beeld — Instructie regisseur">
-              <div style={{ fontSize: 13, lineHeight: 1.7, color: C.muted }}>{prep.intro_beeld}</div>
+            <Blk label="Beeldinstructie">
+              <div style={{ fontSize: 13, lineHeight: 1.7, color: C.muted }}>{prep.beeld_instructie}</div>
             </Blk>
 
-            <Blk label="Grafisch / foto's">
-              {prep.grafisch?.map((g, i) => (
-                <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8 }}>
-                  <span style={{ color: C.red, fontFamily: "monospace", fontSize: 10, minWidth: 20, paddingTop: 2 }}>#{i + 1}</span>
-                  <span style={{ fontSize: 13, color: C.muted, lineHeight: 1.55 }}>{g}</span>
-                </div>
-              ))}
-            </Blk>
+            {prep.segmenten?.map((s, i) => (
+              <Blk key={i} label={s.label}>
+                <div style={{ fontSize: 13, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{s.inhoud}</div>
+              </Blk>
+            ))}
 
-            <Blk label="Gesprekslijnen">
-              {prep.gesprekslijnen?.map((g, i) => (
-                <div key={i} style={{ borderLeft: `2px solid ${i === prep.gesprekslijnen.length - 1 ? C.red : C.border}`, paddingLeft: 14, marginBottom: 16 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>{g.vraag}</div>
-                  <div style={{ fontSize: 11, color: C.dim, lineHeight: 1.5, fontFamily: "monospace" }}>{g.toelichting}</div>
-                </div>
-              ))}
-            </Blk>
+            {prep.bv_suggesties?.length > 0 && (
+              <Blk label="BV — Beeldvuller / panel suggesties">
+                {prep.bv_suggesties.map((b, i) => (
+                  <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8 }}>
+                    <span style={{ color: C.red, fontFamily: "monospace", fontSize: 10, minWidth: 20, paddingTop: 2 }}>#{i + 1}</span>
+                    <span style={{ fontSize: 13, lineHeight: 1.55 }}>{b}</span>
+                  </div>
+                ))}
+              </Blk>
+            )}
           </div>
         )}
       </div>
