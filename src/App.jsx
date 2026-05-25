@@ -8,6 +8,8 @@ Wij zeggen wat andere media niet zeggen. Geen politieke correctheid, geen omhaal
 Scherp, eerlijk, herkenbaar. De kijker denkt: "eindelijk zegt iemand het."
 Huidig kabinet: kabinet-Jetten (D66, VVD, CDA), premier Rob Jetten, sinds 23 februari 2026.`;
 
+const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
+
 async function fetchNieuws() {
   const rss = "https://www.nu.nl/rss/algemeen";
   const proxy = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rss)}`;
@@ -20,16 +22,14 @@ async function fetchNieuws() {
     .join("\n");
 }
 
-const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
-
 const TOPICS_PROMPT = (name, background, nieuws, ronde, eigenInput) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
 Programmaprofiel: ${SHOW_PROFILE}
 
-Actueel nieuws van vandaag (automatisch opgehaald van Nu.nl):
+Actueel nieuws van vandaag (geselecteerd door de redactie):
 ${nieuws}
 
-${eigenInput ? `Eigen sturing van de redactie (prioriteit — houd hier rekening mee bij de onderwerpen):
+${eigenInput ? `Eigen sturing van de redactie (prioriteit):
 ${eigenInput}` : ""}
 
 Gast: ${name}
@@ -102,7 +102,7 @@ const C = {
 
 const inp = {
   width: "100%", background: C.surface, border: `1px solid ${C.border}`,
-  color: C.white, padding: "11px 13px", fontSize: 14,
+  color: C.white, padding: "11px 13px", fontSize: 13,
   fontFamily: "Georgia, serif", outline: "none", boxSizing: "border-box",
 };
 
@@ -126,7 +126,7 @@ export default function App() {
       .catch(() => setNieuwsStatus("fout"));
   }, []);
 
-  const canGo = name.trim().length > 1 && bg.trim().length > 4 && nieuwsStatus === "ok";
+  const canGo = name.trim().length > 1 && bg.trim().length > 4 && nieuws.trim().length > 10;
 
   const doTopics = async (r) => {
     if (!canGo || loadT) return;
@@ -169,24 +169,34 @@ export default function App() {
 
       <div style={{ maxWidth: 840, margin: "0 auto", padding: "36px 22px" }}>
 
+        {/* NIEUWS */}
         <Lbl>01 — Nieuws van vandaag</Lbl>
-        <div style={{ fontSize: 12, color: nieuwsStatus === "ok" ? C.muted : nieuwsStatus === "fout" ? C.red : C.muted, marginBottom: 16, fontFamily: "monospace" }}>
+        <div style={{ fontSize: 11, color: C.muted, marginBottom: 8, fontFamily: "monospace" }}>
           {nieuwsStatus === "laden" && "⏳ Nieuws ophalen van Nu.nl..."}
-          {nieuwsStatus === "ok" && "✓ Actueel nieuws geladen van Nu.nl"}
-          {nieuwsStatus === "fout" && "⚠ Kon nieuws niet ophalen — probeer de pagina te verversen"}
+          {nieuwsStatus === "ok" && "✓ Geladen van Nu.nl — verwijder wat niet relevant is, voeg toe wat mist"}
+          {nieuwsStatus === "fout" && "⚠ Kon nieuws niet ophalen — typ zelf koppen in"}
         </div>
+        <textarea
+          value={nieuws}
+          onChange={e => { setNieuws(e.target.value); setTopics(null); setSel(null); setPrep(null); }}
+          style={{ ...inp, minHeight: 160, resize: "vertical", lineHeight: 1.7 }}
+          placeholder="Nieuws wordt automatisch geladen..."
+        />
 
-        <Fld label="Eigen input / sturing (optioneel)">
-          <textarea
-            value={eigenInput}
-            onChange={e => { setEigenInput(e.target.value); setTopics(null); setSel(null); setPrep(null); }}
-            placeholder={"Bijv: we willen het hebben over de stijgende huurprijzen, of: gast heeft net een boek uit over immigratie"}
-            style={{ ...inp, minHeight: 70, resize: "vertical", lineHeight: 1.6 }}
-          />
-        </Fld>
+        <div style={{ height: 16 }} />
 
-        <div style={{ height: 24 }} />
+        {/* EIGEN STURING */}
+        <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontFamily: "monospace", textTransform: "uppercase", letterSpacing: 2 }}>Eigen sturing / idee (optioneel)</div>
+        <textarea
+          value={eigenInput}
+          onChange={e => { setEigenInput(e.target.value); setTopics(null); setSel(null); setPrep(null); }}
+          placeholder="Bijv: we willen het hebben over stijgende huurprijzen, of: gast heeft net een boek uit over immigratie"
+          style={{ ...inp, minHeight: 60, resize: "vertical", lineHeight: 1.6 }}
+        />
 
+        <div style={{ height: 28 }} />
+
+        {/* GAST */}
         <Lbl>02 — Gast invoeren</Lbl>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12, marginBottom: 14 }}>
           <Fld label="Naam gast">
@@ -207,6 +217,7 @@ export default function App() {
           </div>
         )}
 
+        {/* ONDERWERPEN */}
         {topics && (
           <div style={{ marginTop: 36 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
@@ -235,6 +246,7 @@ export default function App() {
 
         {loadP && <div style={{ textAlign: "center", padding: "40px 0", color: C.muted, fontFamily: "monospace", fontSize: 10, letterSpacing: 3, textTransform: "uppercase" }}>Gespreksopzet wordt opgebouwd...</div>}
 
+        {/* GESPREKSOPZET */}
         {prep && sel && (
           <div style={{ marginTop: 36 }}>
             <Lbl>04 — Gespreksopzet</Lbl>
