@@ -1,26 +1,44 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const VANDAAG = new Date().toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" });
 
 const SHOW_PROFILE = `Nieuws van de Dag is een opinie- en actualiteitenprogramma op SBS6.
 De toon is direct, opiniërend en informeel — voor de gewone man.
 Wij zeggen wat andere media niet zeggen. Geen politieke correctheid, geen omhaal.
-Scherp, eerlijk, herkenbaar. De kijker denkt: "eindelijk zegt iemand het."`;
+Scherp, eerlijk, herkenbaar. De kijker denkt: "eindelijk zegt iemand het."
+Huidig kabinet: kabinet-Jetten (D66, VVD, CDA), premier Rob Jetten, sinds 23 februari 2026.`;
 
-const TOPICS_PROMPT = (name, background) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
+const NEWSAPI_KEY = import.meta.env.VITE_NEWSAPI_KEY;
+const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
+
+async function fetchNieuws() {
+  const url = `https://newsapi.org/v2/top-headlines?country=nl&pageSize=20&apiKey=${NEWSAPI_KEY}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!data.articles) throw new Error("Geen nieuws opgehaald");
+  return data.articles
+    .filter(a => a.title && a.title !== "[Removed]")
+    .map(a => `- ${a.title} (${a.source?.name || "onbekend"}, ${a.publishedAt?.slice(0, 10) || ""})`)
+    .join("\n");
+}
+
+const TOPICS_PROMPT = (name, background, nieuws, ronde) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
 Programmaprofiel: ${SHOW_PROFILE}
+
+Actueel Nederlands nieuws van vandaag:
+${nieuws}
 
 Gast: ${name}
 Achtergrond/expertise: ${background}
 
-Genereer precies 4 ACTUELE gespreksonderwerpen voor deze gast. Gebaseerd op echt recent Nederlands nieuws van de afgelopen dagen. Geen standaard thema's.
+${ronde > 1 ? `Dit is ronde ${ronde} — geef 4 ANDERE onderwerpen dan eerder, vanuit een andere invalshoek.` : ""}
 
-Elk onderwerp moet aansluiten bij de expertise van de gast, passen bij de toon (direct, opiniërend, voor de gewone man) en iets zeggen wat andere media niet durven.
+Kies 4 onderwerpen uit bovenstaand nieuws die passen bij deze gast en bij het profiel van het programma. Koppel elk onderwerp aan een concreet nieuwsfeit. Geen vage thema's.
 
-Geef ALLEEN een JSON-array terug, niets anders. Geen uitleg, geen markdown, geen backticks. Puur de array.
+Geef ALLEEN een JSON-array terug, niets anders. Geen uitleg, geen markdown, geen backticks.
 
-[{"titel":"...","omschrijving":"...","profiel":"...","bron":"Naam van medium of nieuwsfeit waarop dit gebaseerd is, bijv. NOS 23 mei of RTL Nieuws 24 mei"}]`;
+[{"titel":"...","omschrijving":"...","profiel":"...","bron":"Naam medium en datum uit het nieuws hierboven"}]`;
 
 const PREP_PROMPT = (name, background, topic, topicDesc) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
@@ -30,32 +48,22 @@ Gast: ${name} — ${background}
 Onderwerp: ${topic}
 Context: ${topicDesc}
 
-Geef ALLEEN een JSON-object terug, niets anders. Geen uitleg, geen markdown, geen backticks. Puur het object.
+Geef ALLEEN een JSON-object terug, niets anders. Geen uitleg, geen markdown, geen backticks.
 
 {"pr_intro":"Introtekst presentator: 2-3 zinnen, direct en prikkelend voor de gewone man, eindig met haakje naar de gast.","intro_beeld":"Beeldinstructie regisseur: wat zien we op beeld, sfeer of studio-opstelling.","grafisch":["Suggestie 1","Suggestie 2","Suggestie 3"],"gesprekslijnen":[{"vraag":"Eerste vraag","toelichting":"Wat moet eruit komen?"},{"vraag":"Tweede vraag","toelichting":"Waarom belangrijk voor ons profiel?"},{"vraag":"Derde vraag","toelichting":"Wat andere media niet vragen"},{"vraag":"Vierde vraag","toelichting":"Verdieping of stelling voorleggen"},{"vraag":"Afsluiter","toelichting":"Laat de gast iets zeggen dat blijft hangen."}]}`;
 
-const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
-
 function extractJSON(text) {
-  // Try to find array first, then object
-  let match = text.match(/\[[\s\S]*\]/);
-  if (match) {
-    // Find the last ] to avoid cutting off
-    const start = text.indexOf('[');
-    const end = text.lastIndexOf(']');
-    if (start !== -1 && end !== -1) {
-      try { return JSON.parse(text.slice(start, end + 1)); } catch {}
-    }
+  const start1 = text.indexOf('[');
+  const end1 = text.lastIndexOf(']');
+  if (start1 !== -1 && end1 !== -1 && end1 > start1) {
+    try { return JSON.parse(text.slice(start1, end1 + 1)); } catch {}
   }
-  match = text.match(/\{[\s\S]*\}/);
-  if (match) {
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-    if (start !== -1 && end !== -1) {
-      try { return JSON.parse(text.slice(start, end + 1)); } catch {}
-    }
+  const start2 = text.indexOf('{');
+  const end2 = text.lastIndexOf('}');
+  if (start2 !== -1 && end2 !== -1 && end2 > start2) {
+    try { return JSON.parse(text.slice(start2, end2 + 1)); } catch {}
   }
-  throw new Error(`Kon JSON niet verwerken. Antwoord: ${text.slice(0, 200)}`);
+  throw new Error(`Kon JSON niet verwerken: ${text.slice(0, 150)}`);
 }
 
 async function callClaude(prompt) {
@@ -63,7 +71,7 @@ async function callClaude(prompt) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": API_KEY,
+      "x-api-key": ANTHROPIC_KEY,
       "anthropic-version": "2023-06-01",
       "anthropic-dangerous-direct-browser-access": "true",
     },
@@ -73,15 +81,12 @@ async function callClaude(prompt) {
       messages: [{ role: "user", content: prompt }],
     }),
   });
-
   if (!response.ok) {
     const err = await response.text();
     throw new Error(`API fout ${response.status}: ${err.slice(0, 200)}`);
   }
-
   const data = await response.json();
   if (data.error) throw new Error(data.error.message);
-
   const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
   return extractJSON(text);
 }
@@ -101,21 +106,37 @@ const inp = {
 export default function App() {
   const [name, setName] = useState("");
   const [bg, setBg] = useState("");
+  const [nieuws, setNieuws] = useState("");
+  const [nieuwsStatus, setNieuwsStatus] = useState("laden");
   const [topics, setTopics] = useState(null);
   const [sel, setSel] = useState(null);
   const [prep, setPrep] = useState(null);
   const [loadT, setLoadT] = useState(false);
   const [loadP, setLoadP] = useState(false);
   const [err, setErr] = useState("");
+  const [ronde, setRonde] = useState(1);
 
-  const canGo = name.trim().length > 1 && bg.trim().length > 4;
+  useEffect(() => {
+    fetchNieuws()
+      .then(n => { setNieuws(n); setNieuwsStatus("ok"); })
+      .catch(() => setNieuwsStatus("fout"));
+  }, []);
 
-  const doTopics = async () => {
+  const canGo = name.trim().length > 1 && bg.trim().length > 4 && nieuwsStatus === "ok";
+
+  const doTopics = async (nieuweRonde) => {
     if (!canGo || loadT) return;
+    const r = nieuweRonde || ronde;
     setLoadT(true); setTopics(null); setSel(null); setPrep(null); setErr("");
-    try { setTopics(await callClaude(TOPICS_PROMPT(name, bg))); }
+    try { setTopics(await callClaude(TOPICS_PROMPT(name, bg, nieuws, r))); }
     catch (e) { setErr(e.message); }
     setLoadT(false);
+  };
+
+  const doNieuweRonde = () => {
+    const r = ronde + 1;
+    setRonde(r);
+    doTopics(r);
   };
 
   const doPrep = async (t) => {
@@ -126,7 +147,7 @@ export default function App() {
     setLoadP(false);
   };
 
-  const reset = () => { setName(""); setBg(""); setTopics(null); setSel(null); setPrep(null); setErr(""); };
+  const reset = () => { setName(""); setBg(""); setTopics(null); setSel(null); setPrep(null); setErr(""); setRonde(1); };
 
   return (
     <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Georgia, serif", color: C.white }}>
@@ -136,7 +157,9 @@ export default function App() {
             <span style={{ fontSize: 19, fontWeight: 700, letterSpacing: 2, color: C.red, textTransform: "uppercase" }}>Nieuws van de Dag</span>
             <span style={{ fontSize: 10, letterSpacing: 4, color: C.muted, fontFamily: "monospace", textTransform: "uppercase" }}>SBS6</span>
           </div>
-          <div style={{ fontSize: 10, color: C.dim, letterSpacing: 3, marginTop: 2, fontFamily: "monospace", textTransform: "uppercase" }}>Redactietool · {VANDAAG}</div>
+          <div style={{ fontSize: 10, color: C.dim, letterSpacing: 3, marginTop: 2, fontFamily: "monospace", textTransform: "uppercase" }}>
+            Redactietool · {VANDAAG} · Nieuws: {nieuwsStatus === "ok" ? "✓ geladen" : nieuwsStatus === "laden" ? "laden..." : "⚠ fout"}
+          </div>
         </div>
         {(name || topics) && (
           <button onClick={reset} style={{ background: "none", border: `1px solid ${C.border}`, color: C.muted, padding: "5px 14px", cursor: "pointer", fontSize: 10, letterSpacing: 2, fontFamily: "monospace", textTransform: "uppercase" }}>Nieuw</button>
@@ -154,7 +177,7 @@ export default function App() {
             <input value={bg} onChange={e => { setBg(e.target.value); setTopics(null); setSel(null); setPrep(null); }} placeholder="bijv. Journalist De Telegraaf, schrijft over migratie en veiligheid" style={inp} />
           </Fld>
         </div>
-        <button onClick={doTopics} disabled={!canGo || loadT}
+        <button onClick={() => doTopics(1)} disabled={!canGo || loadT}
           style={{ background: canGo && !loadT ? C.red : C.redDark, border: "none", color: C.white, padding: "11px 26px", fontSize: 10, letterSpacing: 3, fontFamily: "monospace", textTransform: "uppercase", cursor: canGo && !loadT ? "pointer" : "not-allowed" }}>
           {loadT ? "Bezig..." : "Genereer actuele onderwerpen →"}
         </button>
@@ -167,7 +190,13 @@ export default function App() {
 
         {topics && (
           <div style={{ marginTop: 36 }}>
-            <Lbl>02 — Kies een onderwerp</Lbl>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <Lbl>02 — Kies een onderwerp</Lbl>
+              <button onClick={doNieuweRonde} disabled={loadT}
+                style={{ background: "none", border: `1px solid ${C.border}`, color: C.muted, padding: "5px 14px", cursor: loadT ? "not-allowed" : "pointer", fontSize: 10, letterSpacing: 2, fontFamily: "monospace", textTransform: "uppercase" }}>
+                {loadT ? "Bezig..." : "↺ Andere onderwerpen"}
+              </button>
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               {topics.map((t, i) => {
                 const active = sel?.titel === t.titel;
@@ -176,9 +205,7 @@ export default function App() {
                     style={{ background: active ? "#1e0a08" : C.surface, border: `1px solid ${active ? C.red : C.border}`, padding: 18, cursor: "pointer" }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: active ? C.red : C.white, marginBottom: 8, lineHeight: 1.4 }}>{t.titel}</div>
                     <div style={{ fontSize: 12, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>{t.omschrijving}</div>
-                    {t.bron && (
-                      <div style={{ fontSize: 10, color: C.dim, fontFamily: "monospace", marginBottom: 10 }}>📰 {t.bron}</div>
-                    )}
+                    {t.bron && <div style={{ fontSize: 10, color: C.dim, fontFamily: "monospace", marginBottom: 10 }}>📰 {t.bron}</div>}
                     <div style={{ fontSize: 10, color: C.red, fontFamily: "monospace", lineHeight: 1.5, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>↗ {t.profiel}</div>
                   </div>
                 );
