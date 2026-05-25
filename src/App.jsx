@@ -12,8 +12,7 @@ const NEWSAPI_KEY = import.meta.env.VITE_NEWSAPI_KEY;
 const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
 
 async function fetchNieuws() {
-  const url = `https://newsapi.org/v2/top-headlines?country=nl&pageSize=20&apiKey=${NEWSAPI_KEY}`;
-  const res = await fetch(url);
+  const res = await fetch("/api/nieuws");
   const data = await res.json();
   if (!data.articles) throw new Error("Geen nieuws opgehaald");
   return data.articles
