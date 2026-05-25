@@ -22,26 +22,33 @@ async function fetchNieuws() {
     .join("\n");
 }
 
-const TOPICS_PROMPT = (name, background, nieuws, ronde, eigenInput) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
+const TOPICS_PROMPT = (name, background, nieuws, ronde, eigenInput) => `Je bent een ervaren redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
 Programmaprofiel: ${SHOW_PROFILE}
 
-Actueel nieuws van vandaag (geselecteerd door de redactie):
+Actueel nieuws van vandaag:
 ${nieuws}
 
-${eigenInput ? `Eigen sturing van de redactie (prioriteit):
+${eigenInput ? `Eigen sturing van de redactie (geef hier prioriteit aan):
 ${eigenInput}` : ""}
 
 Gast: ${name}
 Achtergrond/expertise: ${background}
 
-${ronde > 1 ? `Dit is ronde ${ronde} — geef 4 ANDERE onderwerpen dan eerder, vanuit een andere invalshoek.` : ""}
+${ronde > 1 ? `Dit is ronde ${ronde} — bedenk 4 compleet ANDERE invalshoeken dan eerder.` : ""}
 
-Kies 4 onderwerpen die passen bij deze gast en bij het profiel van het programma. Koppel elk onderwerp aan een concreet nieuwsfeit. Geen vage thema's.
+Jouw taak: gebruik het nieuws als springplank. Bedenk 4 ORIGINELE gespreksonderwerpen die:
+- NIET de kop letterlijk herhalen, maar er een scherpe invalshoek op vinden
+- Meerdere nieuwsfeiten mogen combineren tot één onderwerp
+- Passen bij de expertise van deze specifieke gast
+- Zeggen wat andere media niet zeggen of niet durven
+- De gewone kijker raken — herkenbaar, direct, opiniërend
+
+Denk in stellingen, spanningsvelden, tegenstrijdigheden. Niet "wat vindt u van X" maar "waarom doet niemand Y terwijl iedereen X ziet."
 
 Geef ALLEEN een JSON-array terug, niets anders. Geen uitleg, geen markdown, geen backticks.
 
-[{"titel":"...","omschrijving":"...","profiel":"...","bron":"Bron zoals vermeld in het nieuws"}]`;
+[{"titel":"Pakkende stelling of vraag (max 8 woorden)","omschrijving":"Wat is de werkelijke kern — het nieuwsfeit plus de scherpe invalshoek die wij kiezen.","profiel":"Wat zegt Nieuws van de Dag hierover wat andere media weglaten of niet durven?","bron":"Welk nieuwsfeit of welke feiten liggen hieraan ten grondslag?"}]`;
 
 const PREP_PROMPT = (name, background, topic, topicDesc) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
