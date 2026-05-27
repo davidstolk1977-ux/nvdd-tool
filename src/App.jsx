@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 const VANDAAG = new Date().toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" });
 
@@ -11,51 +11,41 @@ Huidig kabinet: kabinet-Jetten (D66, VVD, CDA), premier Rob Jetten, sinds 23 feb
 const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
 
 const CATEGORIEEN = [
-  { id: "binnenland", label: "Binnenland / Asiel", feed: "https://www.nu.nl/rss/binnenland" },
-  { id: "economie", label: "Economie / Ondernemerschap", feed: "https://www.nu.nl/rss/economie" },
-  { id: "buitenland", label: "Buitenland / VS", feed: "https://www.nu.nl/rss/buitenland" },
-  { id: "entertainment", label: "Entertainment / Show", feed: "https://www.nu.nl/rss/entertainment" },
-  { id: "koningshuis", label: "Koningshuis", feed: "https://www.nu.nl/rss/royals" },
-  { id: "sport", label: "Sport", feed: "https://www.nu.nl/rss/sport" },
-  { id: "opmerkelijk", label: "Opmerkelijk", feed: "https://www.nu.nl/rss/opmerkelijk" },
+  { id: "binnenland", label: "Binnenland / Asiel" },
+  { id: "economie", label: "Economie / Ondernemerschap" },
+  { id: "buitenland", label: "Buitenland / VS" },
+  { id: "entertainment", label: "Entertainment / Show" },
+  { id: "koningshuis", label: "Koningshuis" },
+  { id: "sport", label: "Sport" },
+  { id: "opmerkelijk", label: "Opmerkelijk" },
 ];
-
-async function fetchNieuws(geselecteerd) {
-  if (geselecteerd.length === 0) throw new Error("Selecteer minimaal één categorie");
-  const res = await fetch(`/api/nieuws?cats=${geselecteerd.join(",")}`);
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  if (!data.items || data.items.length === 0) throw new Error("Geen nieuws opgehaald");
-  return data.items.join("\n");
-}
 
 const TOPICS_PROMPT = (name, background, nieuws, ronde, eigenInput) => `Je bent een ervaren redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
 Programmaprofiel: ${SHOW_PROFILE}
 
-Actueel nieuws van vandaag:
+Actueel nieuws van vandaag (ingevoerd door de redactie):
 ${nieuws}
 
-${eigenInput ? `Eigen sturing van de redactie (geef hier prioriteit aan):
-${eigenInput}` : ""}
+${eigenInput ? `Eigen sturing van de redactie (prioriteit):\n${eigenInput}` : ""}
 
 Gast: ${name}
 Achtergrond/expertise: ${background}
 
 ${ronde > 1 ? `Dit is ronde ${ronde} — bedenk 4 compleet ANDERE invalshoeken dan eerder.` : ""}
 
-Jouw taak: gebruik het nieuws als springplank. Bedenk 4 ORIGINELE gespreksonderwerpen die:
-- NIET de kop letterlijk herhalen, maar er een scherpe invalshoek op vinden
+Gebruik het nieuws als springplank. Bedenk 4 ORIGINELE gespreksonderwerpen die:
+- NIET de kop letterlijk herhalen maar er een scherpe invalshoek op vinden
 - Meerdere nieuwsfeiten mogen combineren tot één onderwerp
 - Passen bij de expertise van deze specifieke gast
 - Zeggen wat andere media niet zeggen of niet durven
 - De gewone kijker raken — herkenbaar, direct, opiniërend
 
-Denk in stellingen, spanningsvelden, tegenstrijdigheden. Niet "wat vindt u van X" maar "waarom doet niemand Y terwijl iedereen X ziet."
+Denk in stellingen en spanningsvelden. Niet "wat vindt u van X" maar "waarom doet niemand Y terwijl iedereen X ziet."
 
 Geef ALLEEN een JSON-array terug, niets anders. Geen uitleg, geen markdown, geen backticks.
 
-[{"titel":"Pakkende stelling of vraag (max 8 woorden)","omschrijving":"Wat is de werkelijke kern — het nieuwsfeit plus de scherpe invalshoek die wij kiezen.","profiel":"Wat zegt Nieuws van de Dag hierover wat andere media weglaten of niet durven?","bron":"Welk nieuwsfeit of welke feiten liggen hieraan ten grondslag?"}]`;
+[{"titel":"Pakkende stelling of vraag (max 8 woorden)","omschrijving":"Het nieuwsfeit plus de scherpe invalshoek.","profiel":"Wat zegt Nieuws van de Dag wat andere media weglaten?","bron":"Welk nieuwsfeit ligt hieraan ten grondslag?"}]`;
 
 const PREP_PROMPT = (name, background, topic, topicDesc, voorgesprek, andereGasten) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
@@ -70,18 +60,16 @@ ${voorgesprek ? `\nVoorgesprek redacteur met gast — verwerk de antwoorden lett
 Maak een gespreksopzet EXACT in dit format van Thomas van Groningen (presentator SBS6):
 
 PRES
-[aankondigingstekst — direct en prikkelend voor de gewone man, eindigend met haakje naar het gesprek]
+[aankondigingstekst — direct en prikkelend, eindigend met haakje naar het gesprek]
 
 [segmentnummer] INSTART [NAAM SEGMENT IN HOOFDLETTERS]
-(( [naam gast in hoofdletters]: "bulletpoint — wat de gast zegt, niet wat je vraagt"
-[naam gast]: "volgend punt"
+(( [GASTNAAM IN HOOFDLETTERS]: "bulletpoint — wat de gast zegt, niet wat je vraagt"
+[GASTNAAM]: "volgend punt"
 
-@ [korte overgang of nieuwe richting in het gesprek]
-[naam gast]: "antwoord op die richting"
+@ [korte overgang of nieuwe richting]
+[GASTNAAM]: "antwoord"
 
-BV: [BEELDVULLER IN HOOFDLETTERS EN VET — dit staat WEL in de autocue]
-
-[naam andere gast indien aanwezig]: "wat die gast zegt" ))
+BV: [BEELDVULLER IN HOOFDLETTERS — staat WEL in autocue] ))
 
 [segmentnummer] INSTART [NAAM VOLGEND SEGMENT]
 (( ... ))
@@ -92,16 +80,16 @@ BV [BEELDVULLER] — apart op nieuwe regel, vetgedrukt, GEEN haakjes
 
 REGELS:
 - Alles wat NIET in de autocue hoeft staat tussen (( ))
-- Beeldvullertekst (BV:) staat WEL in de autocue — geen haakjes eromheen
-- Schrijf ANTWOORDEN, geen vragen — Thomas weet wat de gast zegt, vragen komen vanzelf
-- @ markeert een overgang of nieuwe richting in het gesprek
+- Beeldvullertekst (BV:) staat WEL in de autocue — geen haakjes
+- Schrijf ANTWOORDEN, geen vragen
+- @ markeert een overgang in het gesprek
 - Segmentnummers beginnen bij 91
-- Als er een voorgesprek is: verwerk de antwoorden letterlijk als bulletpoints
-- Geef ook 4 concrete beeldsuggesties apart onderaan
+- Verwerk voorgesprek letterlijk als bulletpoints
+- Geef 4 concrete beeldsuggesties apart onderaan
 
 Geef ALLEEN een JSON-object terug, niets anders. Geen markdown, geen backticks.
 
-{"pres":"De PRES-aankondigingstekst","segmenten":[{"nummer":91,"label":"INSTART NAAM SEGMENT","inhoud":"(( GAST: \"bulletpoint wat gast zegt\"\n\nGAST: \"volgend punt\"\n\n@ Overgang\nGAST: \"antwoord\"\n\nBV: BEELDVULLER IN HOOFDLETTERS ))"}],"beeldvullers":["BV NAAM — aparte beeldvuller","BV NAAM 2"],"overstart":"(( 94 OVERSTART LOCATIE OF AFSLUITING ))","beeld":["Beeldsuggestie 1 — concreet en monteerbaar","Suggestie 2","Suggestie 3","Suggestie 4"]}`;
+{"pres":"De PRES-aankondigingstekst","segmenten":[{"nummer":91,"label":"INSTART NAAM SEGMENT","inhoud":"(( GASTNAAM: \\"wat de gast zegt\\"\\n\\nGAST: \\"volgend punt\\"\\n\\n@ Overgang\\nGAST: \\"antwoord\\"\\n\\nBV: BEELDVULLER IN HOOFDLETTERS ))"}],"beeldvullers":["BV NAAM — aparte beeldvuller"],"overstart":"(( 94 OVERSTART LOCATIE ))","beeld":["Beeldsuggestie 1 — concreet en monteerbaar","Suggestie 2","Suggestie 3","Suggestie 4"]}`;
 
 function extractJSON(text) {
   const start1 = text.indexOf('[');
@@ -145,43 +133,32 @@ async function callClaude(prompt) {
 const C = {
   bg: "#faf8f5", surface: "#ffffff", border: "#e0dbd4",
   red: "#c82016", redDark: "#8c1510", white: "#1a1a1a",
-  muted: "#555", dim: "#999",
+  muted: "#666", dim: "#999",
 };
 
 const inp = {
   width: "100%", background: "#fff", border: `1px solid ${C.border}`,
-  color: "#1a1a1a", padding: "11px 13px", fontSize: 13,
-  fontFamily: "Georgia, serif", outline: "none", boxSizing: "border-box", fontSize: 15,
+  color: "#1a1a1a", padding: "11px 13px", fontSize: 15,
+  fontFamily: "Georgia, serif", outline: "none", boxSizing: "border-box",
 };
 
 export default function App() {
   const [name, setName] = useState("");
   const [bg, setBg] = useState("");
-  const [voorgesprek, setVoorgesprek] = useState("");
-  const [andereGasten, setAndereGasten] = useState("");
   const [nieuws, setNieuws] = useState("");
   const [eigenInput, setEigenInput] = useState("");
-  const [nieuwsStatus, setNieuwsStatus] = useState("idle");
-  const [geselecteerd, setGeselecteerd] = useState(["binnenland", "economie", "buitenland"]);
+  const [actieveCat, setActieveCat] = useState(null);
   const [topics, setTopics] = useState(null);
   const [sel, setSel] = useState(null);
   const [prep, setPrep] = useState(null);
+  const [voorgesprek, setVoorgesprek] = useState("");
+  const [andereGasten, setAndereGasten] = useState("");
   const [loadT, setLoadT] = useState(false);
   const [loadP, setLoadP] = useState(false);
   const [err, setErr] = useState("");
   const [ronde, setRonde] = useState(1);
 
-  const laadNieuws = (cats) => {
-    const te_laden = cats || geselecteerd;
-    setNieuwsStatus("laden");
-    fetchNieuws(te_laden)
-      .then(n => { setNieuws(n); setNieuwsStatus("ok"); })
-      .catch(() => setNieuwsStatus("fout"));
-  };
-
-  useEffect(() => { laadNieuws(["binnenland", "economie", "buitenland"]); }, []);
-
-  const canGo = name.trim().length > 1 && bg.trim().length > 4 && nieuws.trim().length > 10;
+  const canGo = name.trim().length > 1 && bg.trim().length > 4 && nieuws.trim().length > 20;
 
   const doTopics = async (r) => {
     if (!canGo || loadT) return;
@@ -191,15 +168,9 @@ export default function App() {
     setLoadT(false);
   };
 
-  const doNieuweRonde = () => {
-    const r = ronde + 1;
-    setRonde(r);
-    doTopics(r);
-  };
+  const doNieuweRonde = () => { const r = ronde + 1; setRonde(r); doTopics(r); };
 
-  const doSelectTopic = (t) => {
-    setSel(t); setPrep(null); setErr("");
-  };
+  const doSelectTopic = (t) => { setSel(t); setPrep(null); setErr(""); };
 
   const doPrep = async () => {
     if (!sel || loadP) return;
@@ -209,71 +180,60 @@ export default function App() {
     setLoadP(false);
   };
 
-  const reset = () => { setName(""); setBg(""); setEigenInput(""); setVoorgesprek(""); setAndereGasten(""); setTopics(null); setSel(null); setPrep(null); setErr(""); setRonde(1); };
+  const reset = () => {
+    setName(""); setBg(""); setNieuws(""); setEigenInput("");
+    setTopics(null); setSel(null); setPrep(null); setErr("");
+    setVoorgesprek(""); setAndereGasten(""); setRonde(1); setActieveCat(null);
+  };
 
   return (
     <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Georgia, serif", color: C.white }}>
-      <div style={{ borderBottom: `1px solid ${C.border}`, padding: "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ borderBottom: `1px solid ${C.border}`, padding: "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fff" }}>
         <div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
             <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: 2, color: C.red, textTransform: "uppercase" }}>Nieuws van de Dag</span>
-            <span style={{ fontSize: 10, letterSpacing: 4, color: C.muted, fontFamily: "monospace", textTransform: "uppercase" }}>SBS6</span>
+            <span style={{ fontSize: 10, letterSpacing: 4, color: C.dim, fontFamily: "monospace", textTransform: "uppercase" }}>SBS6</span>
           </div>
-          <div style={{ fontSize: 10, color: C.dim, letterSpacing: 3, marginTop: 2, fontFamily: "monospace", textTransform: "uppercase" }}>Redactietool · {VANDAAG}</div>
+          <div style={{ fontSize: 11, color: C.dim, letterSpacing: 3, marginTop: 2, fontFamily: "monospace", textTransform: "uppercase" }}>Redactietool · {VANDAAG}</div>
         </div>
         {(name || topics) && (
-          <button onClick={reset} style={{ background: "none", border: `1px solid ${C.border}`, color: C.muted, padding: "5px 14px", cursor: "pointer", fontSize: 10, letterSpacing: 2, fontFamily: "monospace", textTransform: "uppercase" }}>Nieuw</button>
+          <button onClick={reset} style={{ background: "none", border: `1px solid ${C.border}`, color: C.muted, padding: "5px 14px", cursor: "pointer", fontSize: 11, letterSpacing: 2, fontFamily: "monospace", textTransform: "uppercase" }}>Nieuw</button>
         )}
       </div>
 
-      <div style={{ maxWidth: 840, margin: "0 auto", padding: "36px 22px" }}>
+      <div style={{ maxWidth: 860, margin: "0 auto", padding: "40px 24px" }}>
 
         {/* NIEUWS */}
         <Lbl>01 — Nieuws van vandaag</Lbl>
-
-        {/* CATEGORIE CHECKBOXES */}
+        <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
+          Selecteer een categorie en plak de koppen van NOS.nl, Telegraaf.nl of een andere bron.
+        </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
           {CATEGORIEEN.map(c => {
-            const aan = geselecteerd.includes(c.id);
+            const aan = actieveCat === c.id;
             return (
-              <div key={c.id} onClick={() => {
-                const nieuw = aan ? geselecteerd.filter(x => x !== c.id) : [...geselecteerd, c.id];
-                setGeselecteerd(nieuw);
-              }} style={{ padding: "6px 14px", border: `1px solid ${aan ? C.red : C.border}`, background: aan ? "#fff0ee" : "#fff", color: aan ? C.red : C.muted, fontSize: 12, cursor: "pointer", fontFamily: "Georgia, serif", borderRadius: 2 }}>
+              <div key={c.id} onClick={() => setActieveCat(aan ? null : c.id)}
+                style={{ padding: "6px 14px", border: `1px solid ${aan ? C.red : C.border}`, background: aan ? "#fff0ee" : "#fff", color: aan ? C.red : C.muted, fontSize: 13, cursor: "pointer", borderRadius: 2 }}>
                 {c.label}
               </div>
             );
           })}
-          <button onClick={laadNieuws} disabled={nieuwsStatus === "laden"}
-            style={{ padding: "6px 14px", background: C.red, border: "none", color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "monospace", letterSpacing: 1 }}>
-            {nieuwsStatus === "laden" ? "Laden..." : "↺ Ophalen"}
-          </button>
-        </div>
-
-        <div style={{ fontSize: 11, color: C.muted, marginBottom: 8, fontFamily: "monospace" }}>
-          {nieuwsStatus === "idle" && "Selecteer categorieën en klik ophalen"}
-          {nieuwsStatus === "laden" && "⏳ Nieuws ophalen van Nu.nl..."}
-          {nieuwsStatus === "ok" && "✓ Geladen — verwijder wat niet relevant is, voeg toe wat mist"}
-          {nieuwsStatus === "fout" && "⚠ Kon nieuws niet ophalen — typ zelf koppen in"}
         </div>
         <textarea
           value={nieuws}
           onChange={e => { setNieuws(e.target.value); setTopics(null); setSel(null); setPrep(null); }}
-          style={{ ...inp, minHeight: 160, resize: "vertical", lineHeight: 1.7 }}
-          placeholder="Nieuws wordt automatisch geladen na selectie van categorieën..."
+          style={{ ...inp, minHeight: 140, resize: "vertical", lineHeight: 1.7 }}
+          placeholder={"Plak hier nieuwskoppen van vandaag, één per regel.\n\nbijv:\n- Kabinet-Jetten kondigt bezuinigingen aan\n- 120 asielzoekers per nacht van Ter Apel naar Groningen\n- Wapenbezit jongeren gestegen met 22 procent"}
         />
 
-        <div style={{ height: 16 }} />
+        <div style={{ height: 24 }} />
 
         {/* EIGEN STURING */}
         <Lbl>Eigen sturing / idee (optioneel)</Lbl>
-        <div style={{ fontSize: 11, color: C.muted, marginBottom: 8, fontFamily: "monospace" }}>
-          Geef richting mee — een onderwerp, invalshoek of iets wat de gast net heeft gedaan
-        </div>
         <textarea
           value={eigenInput}
           onChange={e => { setEigenInput(e.target.value); setTopics(null); setSel(null); setPrep(null); }}
-          placeholder="Bijv: we willen het hebben over stijgende huurprijzen, of: gast heeft net een boek uit over immigratie"
+          placeholder="Geef richting mee — een onderwerp, invalshoek of iets wat de gast net heeft gedaan"
           style={{ ...inp, minHeight: 60, resize: "vertical", lineHeight: 1.6 }}
         />
 
@@ -290,49 +250,12 @@ export default function App() {
           </Fld>
         </div>
         <button onClick={() => doTopics(1)} disabled={!canGo || loadT}
-          style={{ background: canGo && !loadT ? C.red : C.redDark, border: "none", color: C.white, padding: "11px 26px", fontSize: 10, letterSpacing: 3, fontFamily: "monospace", textTransform: "uppercase", cursor: canGo && !loadT ? "pointer" : "not-allowed" }}>
+          style={{ background: canGo && !loadT ? C.red : "#ccc", border: "none", color: "#fff", padding: "12px 28px", fontSize: 11, letterSpacing: 3, fontFamily: "monospace", textTransform: "uppercase", cursor: canGo && !loadT ? "pointer" : "not-allowed" }}>
           {loadT ? "Bezig..." : "Genereer actuele onderwerpen →"}
         </button>
 
-        <div style={{ height: 28 }} />
-
-        {/* VOORGESPREK */}
-        <Lbl>03 — Voorgesprek & andere gasten (optioneel)</Lbl>
-        <div style={{ fontSize: 11, color: C.muted, marginBottom: 10, fontFamily: "monospace" }}>
-          Vul dit in nadat je een onderwerp gekozen hebt — wordt verwerkt in de opzet
-        </div>
-        <Fld label="Voorgesprek redacteur met gast">
-          <textarea
-            value={voorgesprek}
-            onChange={e => setVoorgesprek(e.target.value)}
-            placeholder={"Bijv:\nR: Wat vind je van de nieuwe huurwet?\nG: Ik denk dat het averechts werkt, huurders zijn er slechter af\nR: Waarom?\nG: Omdat verhuurders massaal stoppen..."}
-            style={{ ...inp, minHeight: 100, resize: "vertical", lineHeight: 1.6 }}
-          />
-        </Fld>
-        <div style={{ height: 12 }} />
-        <Fld label="Andere gasten in het item (optioneel)">
-          <input
-            value={andereGasten}
-            onChange={e => setAndereGasten(e.target.value)}
-            placeholder="bijv. Verslaggever Suzette Nesselaar vanuit Den Haag"
-            style={inp}
-          />
-        </Fld>
-
-        {sel && (
-          <div style={{ marginTop: 20 }}>
-            <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace", marginBottom: 10 }}>
-              Geselecteerd: <span style={{ color: C.red }}>{sel.titel}</span>
-            </div>
-            <button onClick={doPrep} disabled={loadP}
-              style={{ background: !loadP ? C.red : C.redDark, border: "none", color: C.white, padding: "11px 26px", fontSize: 10, letterSpacing: 3, fontFamily: "monospace", textTransform: "uppercase", cursor: !loadP ? "pointer" : "not-allowed" }}>
-              {loadP ? "Bezig..." : "Genereer gespreksopzet →"}
-            </button>
-          </div>
-        )}
-
         {err && (
-          <div style={{ marginTop: 16, color: C.red, fontSize: 11, fontFamily: "monospace", padding: "10px 14px", border: `1px solid ${C.redDark}`, background: "#fff0f0", wordBreak: "break-all" }}>
+          <div style={{ marginTop: 16, color: C.red, fontSize: 12, fontFamily: "monospace", padding: "10px 14px", border: `1px solid ${C.redDark}`, background: "#fff0ee", wordBreak: "break-all" }}>
             ⚠ {err}
           </div>
         )}
@@ -341,9 +264,9 @@ export default function App() {
         {topics && (
           <div style={{ marginTop: 36 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-              <Lbl>04 — Kies een onderwerp</Lbl>
+              <Lbl>03 — Kies een onderwerp</Lbl>
               <button onClick={doNieuweRonde} disabled={loadT}
-                style={{ background: "none", border: `1px solid ${C.border}`, color: C.muted, padding: "5px 14px", cursor: loadT ? "not-allowed" : "pointer", fontSize: 10, letterSpacing: 2, fontFamily: "monospace", textTransform: "uppercase" }}>
+                style={{ background: "none", border: `1px solid ${C.border}`, color: C.muted, padding: "5px 14px", cursor: "pointer", fontSize: 11, letterSpacing: 2, fontFamily: "monospace", textTransform: "uppercase" }}>
                 {loadT ? "Bezig..." : "↺ Andere onderwerpen"}
               </button>
             </div>
@@ -352,11 +275,11 @@ export default function App() {
                 const active = sel?.titel === t.titel;
                 return (
                   <div key={i} onClick={() => doSelectTopic(t)}
-                    style={{ background: active ? "#1e0a08" : C.surface, border: `1px solid ${active ? C.red : C.border}`, padding: 18, cursor: "pointer" }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: active ? C.red : C.white, marginBottom: 8, lineHeight: 1.4 }}>{t.titel}</div>
-                    <div style={{ fontSize: 12, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>{t.omschrijving}</div>
-                    {t.bron && <div style={{ fontSize: 10, color: C.dim, fontFamily: "monospace", marginBottom: 10 }}>📰 {t.bron}</div>}
-                    <div style={{ fontSize: 10, color: C.red, fontFamily: "monospace", lineHeight: 1.5, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>↗ {t.profiel}</div>
+                    style={{ background: active ? "#fff0ee" : "#fff", border: `1px solid ${active ? C.red : C.border}`, padding: 18, cursor: "pointer" }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: active ? C.red : C.white, marginBottom: 8, lineHeight: 1.4 }}>{t.titel}</div>
+                    <div style={{ fontSize: 13, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>{t.omschrijving}</div>
+                    {t.bron && <div style={{ fontSize: 11, color: C.dim, fontFamily: "monospace", marginBottom: 10 }}>📰 {t.bron}</div>}
+                    <div style={{ fontSize: 11, color: C.red, lineHeight: 1.5, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>↗ {t.profiel}</div>
                   </div>
                 );
               })}
@@ -364,19 +287,44 @@ export default function App() {
           </div>
         )}
 
-        {loadP && <div style={{ textAlign: "center", padding: "40px 0", color: C.muted, fontFamily: "monospace", fontSize: 10, letterSpacing: 3, textTransform: "uppercase" }}>Gespreksopzet wordt opgebouwd...</div>}
+        {/* VOORGESPREK */}
+        {sel && (
+          <div style={{ marginTop: 36 }}>
+            <Lbl>04 — Voorgesprek & andere gasten (optioneel)</Lbl>
+            <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>Vul dit in vóór je de opzet genereert — wordt letterlijk verwerkt in de antwoorden</div>
+            <Fld label="Voorgesprek redacteur met gast">
+              <textarea value={voorgesprek} onChange={e => setVoorgesprek(e.target.value)}
+                placeholder={"R: Wat vind je van X?\nG: Ik denk dat...\nR: Waarom?\nG: Omdat..."}
+                style={{ ...inp, minHeight: 100, resize: "vertical", lineHeight: 1.6 }} />
+            </Fld>
+            <div style={{ height: 12 }} />
+            <Fld label="Andere gasten in het item (optioneel)">
+              <input value={andereGasten} onChange={e => setAndereGasten(e.target.value)}
+                placeholder="bijv. Verslaggever Suzette Nesselaar vanuit Den Haag" style={inp} />
+            </Fld>
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Geselecteerd: <span style={{ color: C.red, fontWeight: 700 }}>{sel.titel}</span></div>
+              <button onClick={doPrep} disabled={loadP}
+                style={{ background: !loadP ? C.red : "#ccc", border: "none", color: "#fff", padding: "12px 28px", fontSize: 11, letterSpacing: 3, fontFamily: "monospace", textTransform: "uppercase", cursor: !loadP ? "pointer" : "not-allowed" }}>
+                {loadP ? "Bezig..." : "Genereer gespreksopzet →"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {loadP && <div style={{ textAlign: "center", padding: "40px 0", color: C.muted, fontFamily: "monospace", fontSize: 11, letterSpacing: 3, textTransform: "uppercase" }}>Gespreksopzet wordt opgebouwd...</div>}
 
         {/* GESPREKSOPZET */}
         {prep && sel && (
           <div style={{ marginTop: 36 }}>
             <Lbl>05 — Gespreksopzet</Lbl>
             <div style={{ borderLeft: `3px solid ${C.red}`, paddingLeft: 16, marginBottom: 24 }}>
-              <div style={{ fontSize: 17, fontWeight: 700 }}>{sel.titel}</div>
-              <div style={{ fontSize: 11, color: C.muted, marginTop: 4, fontFamily: "monospace" }}>{name}{andereGasten ? ` · ${andereGasten}` : ""}</div>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>{sel.titel}</div>
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 4, fontFamily: "monospace" }}>{name}{andereGasten ? ` · ${andereGasten}` : ""}</div>
             </div>
 
             <Blk label="PRES">
-              <div style={{ fontSize: 16, lineHeight: 1.9, color: "#1a1a1a", fontWeight: 500 }}>{prep.pres}</div>
+              <div style={{ fontSize: 16, lineHeight: 1.9, fontWeight: 500 }}>{prep.pres}</div>
             </Blk>
 
             {prep.segmenten?.map((s, i) => (
@@ -388,21 +336,21 @@ export default function App() {
             {prep.beeldvullers?.length > 0 && (
               <div style={{ marginBottom: 22 }}>
                 {prep.beeldvullers.map((b, i) => (
-                  <div key={i} style={{ fontSize: 14, fontWeight: 700, color: C.white, marginBottom: 6 }}>{b}</div>
+                  <div key={i} style={{ fontSize: 15, fontWeight: 700, color: C.white, marginBottom: 6 }}>{b}</div>
                 ))}
               </div>
             )}
 
             {prep.overstart && (
-              <div style={{ fontSize: 13, color: C.muted, fontFamily: "monospace", marginBottom: 22 }}>{prep.overstart}</div>
+              <div style={{ fontSize: 14, color: C.muted, fontFamily: "monospace", marginBottom: 22 }}>{prep.overstart}</div>
             )}
 
             {prep.beeld?.length > 0 && (
               <Blk label="Beeld — Suggesties voor opnames">
                 {prep.beeld.map((b, i) => (
                   <div key={i} style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-                    <span style={{ color: C.red, fontFamily: "monospace", fontSize: 10, minWidth: 20, paddingTop: 2 }}>#{i + 1}</span>
-                    <span style={{ fontSize: 13, lineHeight: 1.55, color: C.muted }}>{b}</span>
+                    <span style={{ color: C.red, fontFamily: "monospace", fontSize: 11, minWidth: 22, paddingTop: 2 }}>#{i + 1}</span>
+                    <span style={{ fontSize: 14, lineHeight: 1.55, color: C.muted }}>{b}</span>
                   </div>
                 ))}
               </Blk>
@@ -420,7 +368,7 @@ function Lbl({ children }) {
 function Fld({ label, children }) {
   return (
     <div>
-      <div style={{ fontSize: 10, letterSpacing: 2, color: "#888", fontFamily: "monospace", textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 11, letterSpacing: 2, color: "#999", fontFamily: "monospace", textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
       {children}
     </div>
   );
@@ -428,7 +376,7 @@ function Fld({ label, children }) {
 function Blk({ label, children }) {
   return (
     <div style={{ marginBottom: 22 }}>
-      <div style={{ fontSize: 10, letterSpacing: 3, color: "#e8251a", fontFamily: "monospace", textTransform: "uppercase", marginBottom: 10 }}>{label}</div>
+      <div style={{ fontSize: 11, letterSpacing: 3, color: "#c82016", fontFamily: "monospace", textTransform: "uppercase", marginBottom: 10 }}>{label}</div>
       <div style={{ background: "#ffffff", border: "1px solid #e0dbd4", padding: "18px 22px", fontSize: 15, lineHeight: 1.9 }}>{children}</div>
     </div>
   );
