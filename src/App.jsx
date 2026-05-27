@@ -144,7 +144,7 @@ const C = {
 const inp = {
   width: "100%", background: "#fff", border: `1px solid ${C.border}`,
   color: "#1a1a1a", padding: "11px 13px", fontSize: 13,
-  fontFamily: "Georgia, serif", outline: "none", boxSizing: "border-box",
+  fontFamily: "Georgia, serif", outline: "none", boxSizing: "border-box", fontSize: 15,
 };
 
 export default function App() {
@@ -204,7 +204,7 @@ export default function App() {
       <div style={{ borderBottom: `1px solid ${C.border}`, padding: "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-            <span style={{ fontSize: 19, fontWeight: 700, letterSpacing: 2, color: C.red, textTransform: "uppercase" }}>Nieuws van de Dag</span>
+            <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: 2, color: C.red, textTransform: "uppercase" }}>Nieuws van de Dag</span>
             <span style={{ fontSize: 10, letterSpacing: 4, color: C.muted, fontFamily: "monospace", textTransform: "uppercase" }}>SBS6</span>
           </div>
           <div style={{ fontSize: 10, color: C.dim, letterSpacing: 3, marginTop: 2, fontFamily: "monospace", textTransform: "uppercase" }}>Redactietool · {VANDAAG}</div>
@@ -343,12 +343,12 @@ export default function App() {
             </div>
 
             <Blk label="PRES">
-              <div style={{ fontSize: 14, lineHeight: 1.8, color: C.white }}>{prep.pres}</div>
+              <div style={{ fontSize: 16, lineHeight: 1.9, color: "#1a1a1a", fontWeight: 500 }}>{prep.pres}</div>
             </Blk>
 
             {prep.segmenten?.map((s, i) => (
               <Blk key={i} label={`${s.nummer} ${s.label}`}>
-                <div style={{ fontSize: 13, lineHeight: 1.9, whiteSpace: "pre-wrap", color: C.muted }}>{s.inhoud}</div>
+                <div style={{ fontSize: 15, lineHeight: 2.0, whiteSpace: "pre-wrap", color: "#333" }}>{s.inhoud}</div>
               </Blk>
             ))}
 
@@ -382,7 +382,7 @@ export default function App() {
 }
 
 function Lbl({ children }) {
-  return <div style={{ fontSize: 10, letterSpacing: 4, color: "#e8251a", fontFamily: "monospace", textTransform: "uppercase", marginBottom: 14 }}>{children}</div>;
+  return <div style={{ fontSize: 11, letterSpacing: 3, color: "#c82016", fontFamily: "monospace", textTransform: "uppercase", marginBottom: 14 }}>{children}</div>;
 }
 function Fld({ label, children }) {
   return (
@@ -396,7 +396,7 @@ function Blk({ label, children }) {
   return (
     <div style={{ marginBottom: 22 }}>
       <div style={{ fontSize: 10, letterSpacing: 3, color: "#e8251a", fontFamily: "monospace", textTransform: "uppercase", marginBottom: 10 }}>{label}</div>
-      <div style={{ background: "#ffffff", border: "1px solid #e0dbd4", padding: "15px 18px" }}>{children}</div>
+      <div style={{ background: "#ffffff", border: "1px solid #e0dbd4", padding: "18px 22px", fontSize: 15, lineHeight: 1.9 }}>{children}</div>
     </div>
   );
 }
