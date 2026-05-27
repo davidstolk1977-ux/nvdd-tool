@@ -20,24 +20,13 @@ const CATEGORIEEN = [
   { id: "opmerkelijk", label: "Opmerkelijk", feed: "https://www.nu.nl/rss/opmerkelijk" },
 ];
 
-async function fetchNieuwsCategorie(feed) {
-  const proxy = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed)}&count=10`;
-  const res = await fetch(proxy);
-  const data = await res.json();
-  if (!data.items) return [];
-  return data.items
-    .filter(a => a.title && a.title !== "[Removed]")
-    .slice(0, 8)
-    .map(item => `- ${item.title} (Nu.nl, ${item.pubDate?.slice(0, 10) || ""})`);
-}
-
 async function fetchNieuws(geselecteerd) {
-  const feeds = CATEGORIEEN.filter(c => geselecteerd.includes(c.id)).map(c => c.feed);
-  if (feeds.length === 0) throw new Error("Selecteer minimaal één categorie");
-  const results = await Promise.all(feeds.map(fetchNieuwsCategorie));
-  const items = results.flat();
-  if (items.length === 0) throw new Error("Geen nieuws opgehaald");
-  return items.join("\n");
+  if (geselecteerd.length === 0) throw new Error("Selecteer minimaal één categorie");
+  const res = await fetch(`/api/nieuws?cats=${geselecteerd.join(",")}`);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  if (!data.items || data.items.length === 0) throw new Error("Geen nieuws opgehaald");
+  return data.items.join("\n");
 }
 
 const TOPICS_PROMPT = (name, background, nieuws, ronde, eigenInput) => `Je bent een ervaren redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
