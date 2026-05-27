@@ -10,16 +10,34 @@ Huidig kabinet: kabinet-Jetten (D66, VVD, CDA), premier Rob Jetten, sinds 23 feb
 
 const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
 
-async function fetchNieuws() {
-  const rss = "https://www.nu.nl/rss/algemeen";
-  const proxy = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rss)}`;
+const CATEGORIEEN = [
+  { id: "binnenland", label: "Binnenland / Asiel", feed: "https://www.nu.nl/rss/binnenland" },
+  { id: "economie", label: "Economie / Ondernemerschap", feed: "https://www.nu.nl/rss/economie" },
+  { id: "buitenland", label: "Buitenland / VS", feed: "https://www.nu.nl/rss/buitenland" },
+  { id: "entertainment", label: "Entertainment / Show", feed: "https://www.nu.nl/rss/entertainment" },
+  { id: "koningshuis", label: "Koningshuis", feed: "https://www.nu.nl/rss/royals" },
+  { id: "sport", label: "Sport", feed: "https://www.nu.nl/rss/sport" },
+  { id: "opmerkelijk", label: "Opmerkelijk", feed: "https://www.nu.nl/rss/opmerkelijk" },
+];
+
+async function fetchNieuwsCategorie(feed) {
+  const proxy = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(feed)}&count=10`;
   const res = await fetch(proxy);
   const data = await res.json();
-  if (!data.items || data.items.length === 0) throw new Error("Geen nieuws");
+  if (!data.items) return [];
   return data.items
-    .slice(0, 20)
-    .map(item => `- ${item.title} (Nu.nl, ${item.pubDate?.slice(0, 10) || ""})`)
-    .join("\n");
+    .filter(a => a.title && a.title !== "[Removed]")
+    .slice(0, 8)
+    .map(item => `- ${item.title} (Nu.nl, ${item.pubDate?.slice(0, 10) || ""})`);
+}
+
+async function fetchNieuws(geselecteerd) {
+  const feeds = CATEGORIEEN.filter(c => geselecteerd.includes(c.id)).map(c => c.feed);
+  if (feeds.length === 0) throw new Error("Selecteer minimaal één categorie");
+  const results = await Promise.all(feeds.map(fetchNieuwsCategorie));
+  const items = results.flat();
+  if (items.length === 0) throw new Error("Geen nieuws opgehaald");
+  return items.join("\n");
 }
 
 const TOPICS_PROMPT = (name, background, nieuws, ronde, eigenInput) => `Je bent een ervaren redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
@@ -154,7 +172,8 @@ export default function App() {
   const [andereGasten, setAndereGasten] = useState("");
   const [nieuws, setNieuws] = useState("");
   const [eigenInput, setEigenInput] = useState("");
-  const [nieuwsStatus, setNieuwsStatus] = useState("laden");
+  const [nieuwsStatus, setNieuwsStatus] = useState("idle");
+  const [geselecteerd, setGeselecteerd] = useState(["binnenland", "economie", "buitenland"]);
   const [topics, setTopics] = useState(null);
   const [sel, setSel] = useState(null);
   const [prep, setPrep] = useState(null);
@@ -163,11 +182,15 @@ export default function App() {
   const [err, setErr] = useState("");
   const [ronde, setRonde] = useState(1);
 
-  useEffect(() => {
-    fetchNieuws()
+  const laadNieuws = (cats) => {
+    const te_laden = cats || geselecteerd;
+    setNieuwsStatus("laden");
+    fetchNieuws(te_laden)
       .then(n => { setNieuws(n); setNieuwsStatus("ok"); })
       .catch(() => setNieuwsStatus("fout"));
-  }, []);
+  };
+
+  useEffect(() => { laadNieuws(["binnenland", "economie", "buitenland"]); }, []);
 
   const canGo = name.trim().length > 1 && bg.trim().length > 4 && nieuws.trim().length > 10;
 
@@ -218,16 +241,37 @@ export default function App() {
 
         {/* NIEUWS */}
         <Lbl>01 — Nieuws van vandaag</Lbl>
+
+        {/* CATEGORIE CHECKBOXES */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+          {CATEGORIEEN.map(c => {
+            const aan = geselecteerd.includes(c.id);
+            return (
+              <div key={c.id} onClick={() => {
+                const nieuw = aan ? geselecteerd.filter(x => x !== c.id) : [...geselecteerd, c.id];
+                setGeselecteerd(nieuw);
+              }} style={{ padding: "6px 14px", border: `1px solid ${aan ? C.red : C.border}`, background: aan ? "#fff0ee" : "#fff", color: aan ? C.red : C.muted, fontSize: 12, cursor: "pointer", fontFamily: "Georgia, serif", borderRadius: 2 }}>
+                {c.label}
+              </div>
+            );
+          })}
+          <button onClick={laadNieuws} disabled={nieuwsStatus === "laden"}
+            style={{ padding: "6px 14px", background: C.red, border: "none", color: "#fff", fontSize: 12, cursor: "pointer", fontFamily: "monospace", letterSpacing: 1 }}>
+            {nieuwsStatus === "laden" ? "Laden..." : "↺ Ophalen"}
+          </button>
+        </div>
+
         <div style={{ fontSize: 11, color: C.muted, marginBottom: 8, fontFamily: "monospace" }}>
+          {nieuwsStatus === "idle" && "Selecteer categorieën en klik ophalen"}
           {nieuwsStatus === "laden" && "⏳ Nieuws ophalen van Nu.nl..."}
-          {nieuwsStatus === "ok" && "✓ Geladen van Nu.nl — verwijder wat niet relevant is, voeg toe wat mist"}
+          {nieuwsStatus === "ok" && "✓ Geladen — verwijder wat niet relevant is, voeg toe wat mist"}
           {nieuwsStatus === "fout" && "⚠ Kon nieuws niet ophalen — typ zelf koppen in"}
         </div>
         <textarea
           value={nieuws}
           onChange={e => { setNieuws(e.target.value); setTopics(null); setSel(null); setPrep(null); }}
           style={{ ...inp, minHeight: 160, resize: "vertical", lineHeight: 1.7 }}
-          placeholder="Nieuws wordt automatisch geladen..."
+          placeholder="Nieuws wordt automatisch geladen na selectie van categorieën..."
         />
 
         <div style={{ height: 16 }} />
