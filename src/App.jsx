@@ -55,24 +55,46 @@ const PREP_PROMPT = (name, background, topic, topicDesc, voorgesprek, andereGast
 Programmaprofiel: ${SHOW_PROFILE}
 
 Gast: ${name} — ${background}
-${andereGasten ? `Andere gasten in dit item — verwerk ook wat zij over dit onderwerp zeggen: ${andereGasten}` : ""}
+${andereGasten ? `Andere gasten in dit item: ${andereGasten}` : ""}
 Onderwerp: ${topic}
 Context: ${topicDesc}
-${voorgesprek ? `\nVoorgesprek redacteur met gast — verwerk de antwoorden letterlijk in de opzet:\n${voorgesprek}` : ""}
+${voorgesprek ? `\nVoorgesprek redacteur met gast — verwerk de antwoorden letterlijk:\n${voorgesprek}` : ""}
 
-Maak een gespreksopzet volgens de werkwijze van Thomas van Groningen (presentator SBS6).
+Maak een gespreksopzet EXACT in dit format van Thomas van Groningen (presentator SBS6):
 
-STRIKTE REGELS:
-- Schrijf ANTWOORDEN, nooit vragen. Thomas weet wat de gast gaat zeggen — de vragen komen vanzelf.
-- Regie-aanwijzingen tussen (( )) — staat NIET in de autocue
-- Beeldvullertekst (panel, cijfers) WEL uitschrijven zonder haakjes — Thomas leest dit mee
-- Maak het onderwerp zo BEELDEND mogelijk — geef 4 concrete beeldsuggesties die vroeg op de dag verzameld kunnen worden en monteerbaar zijn. Denk aan locaties, mensen, situaties, archief.
-- Als er andere gasten zijn: verwerk ook wat zij zeggen over hetzelfde onderwerp
-- Kort en scherp. Geen omhaal.
+PRES
+[aankondigingstekst — direct en prikkelend voor de gewone man, eindigend met haakje naar het gesprek]
 
-Geef ALLEEN een JSON-object terug, niets anders. Geen uitleg, geen markdown, geen backticks.
+[segmentnummer] INSTART [NAAM SEGMENT IN HOOFDLETTERS]
+(( [naam gast in hoofdletters]: "bulletpoint — wat de gast zegt, niet wat je vraagt"
+[naam gast]: "volgend punt"
 
-{"pr_intro":"PRES-tekst: aankondiging door presentator. Direct en prikkelend. Regie-aanwijzingen tussen (( )). Eindigt met haakje naar het gesprek.","segmenten":[{"label":"INSTART [naam segment]","inhoud":"Bulletpoints met wat de gast ZEGT. Antwoorden, geen vragen. Regie tussen (( )). Beeldvullertekst uitgeschreven."},{"label":"INSTART [volgend segment]","inhoud":"..."},{"label":"OVERSTART of AFSLUITING","inhoud":"Wat blijft hangen. Eventueel BV uitgeschreven."}],"beeld":["Beeldsuggestie 1 — concreet: wat zie je, waar gefilmd, waarom monteerbaar","Suggestie 2","Suggestie 3","Suggestie 4"],"bv_suggesties":["Panel of cijfer 1 — uitgeschreven tekst zoals op beeld","Suggestie 2"]}`;
+@ [korte overgang of nieuwe richting in het gesprek]
+[naam gast]: "antwoord op die richting"
+
+BV: [BEELDVULLER IN HOOFDLETTERS EN VET — dit staat WEL in de autocue]
+
+[naam andere gast indien aanwezig]: "wat die gast zegt" ))
+
+[segmentnummer] INSTART [NAAM VOLGEND SEGMENT]
+(( ... ))
+
+BV [BEELDVULLER] — apart op nieuwe regel, vetgedrukt, GEEN haakjes
+
+(( [segmentnummer] OVERSTART [LOCATIE OF AFSLUITING] ))
+
+REGELS:
+- Alles wat NIET in de autocue hoeft staat tussen (( ))
+- Beeldvullertekst (BV:) staat WEL in de autocue — geen haakjes eromheen
+- Schrijf ANTWOORDEN, geen vragen — Thomas weet wat de gast zegt, vragen komen vanzelf
+- @ markeert een overgang of nieuwe richting in het gesprek
+- Segmentnummers beginnen bij 91
+- Als er een voorgesprek is: verwerk de antwoorden letterlijk als bulletpoints
+- Geef ook 4 concrete beeldsuggesties apart onderaan
+
+Geef ALLEEN een JSON-object terug, niets anders. Geen markdown, geen backticks.
+
+{"pres":"De PRES-aankondigingstekst","segmenten":[{"nummer":91,"label":"INSTART NAAM SEGMENT","inhoud":"(( GAST: \"bulletpoint wat gast zegt\"\n\nGAST: \"volgend punt\"\n\n@ Overgang\nGAST: \"antwoord\"\n\nBV: BEELDVULLER IN HOOFDLETTERS ))"}],"beeldvullers":["BV NAAM — aparte beeldvuller","BV NAAM 2"],"overstart":"(( 94 OVERSTART LOCATIE OF AFSLUITING ))","beeld":["Beeldsuggestie 1 — concreet en monteerbaar","Suggestie 2","Suggestie 3","Suggestie 4"]}`;
 
 function extractJSON(text) {
   const start1 = text.indexOf('[');
@@ -114,14 +136,14 @@ async function callClaude(prompt) {
 }
 
 const C = {
-  bg: "#0f0f0f", surface: "#181818", border: "#2a2a2a",
-  red: "#e8251a", redDark: "#6b100a", white: "#f0ede8",
-  muted: "#888", dim: "#444",
+  bg: "#faf8f5", surface: "#ffffff", border: "#e0dbd4",
+  red: "#c82016", redDark: "#8c1510", white: "#1a1a1a",
+  muted: "#555", dim: "#999",
 };
 
 const inp = {
-  width: "100%", background: C.surface, border: `1px solid ${C.border}`,
-  color: C.white, padding: "11px 13px", fontSize: 13,
+  width: "100%", background: "#fff", border: `1px solid ${C.border}`,
+  color: "#1a1a1a", padding: "11px 13px", fontSize: 13,
   fontFamily: "Georgia, serif", outline: "none", boxSizing: "border-box",
 };
 
@@ -211,7 +233,10 @@ export default function App() {
         <div style={{ height: 16 }} />
 
         {/* EIGEN STURING */}
-        <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontFamily: "monospace", textTransform: "uppercase", letterSpacing: 2 }}>Eigen sturing / idee (optioneel)</div>
+        <Lbl>Eigen sturing / idee (optioneel)</Lbl>
+        <div style={{ fontSize: 11, color: C.muted, marginBottom: 8, fontFamily: "monospace" }}>
+          Geef richting mee — een onderwerp, invalshoek of iets wat de gast net heeft gedaan
+        </div>
         <textarea
           value={eigenInput}
           onChange={e => { setEigenInput(e.target.value); setTopics(null); setSel(null); setPrep(null); }}
@@ -274,7 +299,7 @@ export default function App() {
         )}
 
         {err && (
-          <div style={{ marginTop: 16, color: C.red, fontSize: 11, fontFamily: "monospace", padding: "10px 14px", border: `1px solid ${C.redDark}`, background: "#1a0808", wordBreak: "break-all" }}>
+          <div style={{ marginTop: 16, color: C.red, fontSize: 11, fontFamily: "monospace", padding: "10px 14px", border: `1px solid ${C.redDark}`, background: "#fff0f0", wordBreak: "break-all" }}>
             ⚠ {err}
           </div>
         )}
@@ -317,15 +342,27 @@ export default function App() {
               <div style={{ fontSize: 11, color: C.muted, marginTop: 4, fontFamily: "monospace" }}>{name}{andereGasten ? ` · ${andereGasten}` : ""}</div>
             </div>
 
-            <Blk label="PRES — Aankondiging presentator">
-              <div style={{ fontSize: 15, lineHeight: 1.8 }}>{prep.pr_intro}</div>
+            <Blk label="PRES">
+              <div style={{ fontSize: 14, lineHeight: 1.8, color: C.white }}>{prep.pres}</div>
             </Blk>
 
             {prep.segmenten?.map((s, i) => (
-              <Blk key={i} label={s.label}>
-                <div style={{ fontSize: 13, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{s.inhoud}</div>
+              <Blk key={i} label={`${s.nummer} ${s.label}`}>
+                <div style={{ fontSize: 13, lineHeight: 1.9, whiteSpace: "pre-wrap", color: C.muted }}>{s.inhoud}</div>
               </Blk>
             ))}
+
+            {prep.beeldvullers?.length > 0 && (
+              <div style={{ marginBottom: 22 }}>
+                {prep.beeldvullers.map((b, i) => (
+                  <div key={i} style={{ fontSize: 14, fontWeight: 700, color: C.white, marginBottom: 6 }}>{b}</div>
+                ))}
+              </div>
+            )}
+
+            {prep.overstart && (
+              <div style={{ fontSize: 13, color: C.muted, fontFamily: "monospace", marginBottom: 22 }}>{prep.overstart}</div>
+            )}
 
             {prep.beeld?.length > 0 && (
               <Blk label="Beeld — Suggesties voor opnames">
@@ -333,17 +370,6 @@ export default function App() {
                   <div key={i} style={{ display: "flex", gap: 10, marginBottom: 10 }}>
                     <span style={{ color: C.red, fontFamily: "monospace", fontSize: 10, minWidth: 20, paddingTop: 2 }}>#{i + 1}</span>
                     <span style={{ fontSize: 13, lineHeight: 1.55, color: C.muted }}>{b}</span>
-                  </div>
-                ))}
-              </Blk>
-            )}
-
-            {prep.bv_suggesties?.length > 0 && (
-              <Blk label="BV — Beeldvuller / panel">
-                {prep.bv_suggesties.map((b, i) => (
-                  <div key={i} style={{ display: "flex", gap: 10, marginBottom: 8 }}>
-                    <span style={{ color: C.red, fontFamily: "monospace", fontSize: 10, minWidth: 20, paddingTop: 2 }}>#{i + 1}</span>
-                    <span style={{ fontSize: 13, lineHeight: 1.55 }}>{b}</span>
                   </div>
                 ))}
               </Blk>
@@ -370,7 +396,7 @@ function Blk({ label, children }) {
   return (
     <div style={{ marginBottom: 22 }}>
       <div style={{ fontSize: 10, letterSpacing: 3, color: "#e8251a", fontFamily: "monospace", textTransform: "uppercase", marginBottom: 10 }}>{label}</div>
-      <div style={{ background: "#181818", border: "1px solid #2a2a2a", padding: "15px 18px" }}>{children}</div>
+      <div style={{ background: "#ffffff", border: "1px solid #e0dbd4", padding: "15px 18px" }}>{children}</div>
     </div>
   );
 }
