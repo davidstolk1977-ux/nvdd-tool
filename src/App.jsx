@@ -233,7 +233,7 @@ export default function App() {
     setNieuwsStatus("laden");
     fetchNieuws(te_laden)
       .then(n => { setNieuws(n); setNieuwsStatus("ok"); })
-      .catch(() => setNieuwsStatus("fout"));
+      .catch(e => { setNieuwsStatus("fout: " + e.message); });
   };
 
   useEffect(() => { laadNieuws(["binnenland", "economie", "buitenland"]); }, []);
@@ -363,7 +363,7 @@ export default function App() {
             <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace", marginBottom: 8 }}>
               {nieuwsStatus === "laden" && "⏳ Nieuws ophalen..."}
               {nieuwsStatus === "ok" && "✓ Nieuws geladen — verwijder wat niet relevant is, voeg toe wat mist"}
-              {nieuwsStatus === "fout" && "⚠ Kon nieuws niet ophalen — typ zelf koppen in"}
+              {nieuwsStatus.startsWith("fout") && `⚠ ${nieuwsStatus}`}
             </div>
             <textarea value={nieuws} onChange={e => { setNieuws(e.target.value); setTopics(null); setSel(null); setPrep(null); }}
               style={{ ...inp, minHeight: 140, resize: "vertical", lineHeight: 1.7 }}
