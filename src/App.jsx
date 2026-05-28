@@ -32,6 +32,14 @@ const CATEGORIEEN = [
   { id: "opmerkelijk", label: "Opmerkelijk" },
 ];
 
+async function fetchNieuws(cats) {
+  const res = await fetch(`/api/nieuws?cats=${cats.join(",")}`);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  if (!data.items || data.items.length === 0) throw new Error("Geen nieuws opgehaald");
+  return data.items.join("\n");
+}
+
 const TOPICS_PROMPT = (name, background, nieuws, ronde, eigenInput) => `Je bent een ervaren redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
 Programmaprofiel: ${SHOW_PROFILE}
@@ -173,7 +181,8 @@ export default function App() {
   const [bg, setBg] = useState("");
   const [nieuws, setNieuws] = useState("");
   const [eigenInput, setEigenInput] = useState("");
-  const [actieveCat, setActieveCat] = useState(null);
+  const [actieveCats, setActieveCats] = useState(["binnenland", "economie", "buitenland"]);
+  const [nieuwsStatus, setNieuwsStatus] = useState("idle");
   const [voorgesprek, setVoorgesprek] = useState("");
   const [andereGasten, setAndereGasten] = useState("");
   const [topics, setTopics] = useState(null);
@@ -217,6 +226,17 @@ export default function App() {
     setGeschiedenis(updated);
     localStorage.setItem("nvdd_geschiedenis", JSON.stringify(updated));
   };
+
+  const laadNieuws = (cats) => {
+    const te_laden = cats || actieveCats;
+    if (te_laden.length === 0) return;
+    setNieuwsStatus("laden");
+    fetchNieuws(te_laden)
+      .then(n => { setNieuws(n); setNieuwsStatus("ok"); })
+      .catch(() => setNieuwsStatus("fout"));
+  };
+
+  useEffect(() => { laadNieuws(["binnenland", "economie", "buitenland"]); }, []);
 
   const canGo = name.trim().length > 1 && bg.trim().length > 4 && nieuws.trim().length > 20;
 
@@ -322,17 +342,28 @@ export default function App() {
           <div>
             {/* NIEUWS */}
             <Lbl>01 — Nieuws van vandaag</Lbl>
-            <div style={{ fontSize: 13, color: C.muted, marginBottom: 10 }}>Selecteer een categorie en plak de koppen van NOS.nl, Telegraaf.nl of een andere bron.</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 10 }}>
+              Selecteer categorieën — nieuws wordt automatisch opgehaald. Pas aan of voeg toe wat mist.
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
               {CATEGORIEEN.map(c => {
-                const aan = actieveCat === c.id;
+                const aan = actieveCats.includes(c.id);
                 return (
-                  <div key={c.id} onClick={() => setActieveCat(aan ? null : c.id)}
+                  <div key={c.id} onClick={() => {
+                    const nieuw = aan ? actieveCats.filter(x => x !== c.id) : [...actieveCats, c.id];
+                    setActieveCats(nieuw);
+                    laadNieuws(nieuw);
+                  }}
                     style={{ padding: "6px 14px", border: `1px solid ${aan ? C.red : C.border}`, background: aan ? "#fff0ee" : "#fff", color: aan ? C.red : C.muted, fontSize: 13, cursor: "pointer", borderRadius: 2 }}>
                     {c.label}
                   </div>
                 );
               })}
+            </div>
+            <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace", marginBottom: 8 }}>
+              {nieuwsStatus === "laden" && "⏳ Nieuws ophalen..."}
+              {nieuwsStatus === "ok" && "✓ Nieuws geladen — verwijder wat niet relevant is, voeg toe wat mist"}
+              {nieuwsStatus === "fout" && "⚠ Kon nieuws niet ophalen — typ zelf koppen in"}
             </div>
             <textarea value={nieuws} onChange={e => { setNieuws(e.target.value); setTopics(null); setSel(null); setPrep(null); }}
               style={{ ...inp, minHeight: 140, resize: "vertical", lineHeight: 1.7 }}
