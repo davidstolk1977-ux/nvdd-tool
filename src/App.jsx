@@ -351,8 +351,12 @@ export default function App() {
                 return (
                   <div key={c.id} onClick={() => {
                     const nieuw = aan ? actieveCats.filter(x => x !== c.id) : [...actieveCats, c.id];
+                    if (nieuw.length === 0) return;
                     setActieveCats(nieuw);
-                    laadNieuws(nieuw);
+                    setNieuwsStatus("laden");
+                    fetchNieuws(nieuw)
+                      .then(n => { setNieuws(n); setNieuwsStatus("ok"); })
+                      .catch(e => { setNieuwsStatus("fout: " + e.message); });
                   }}
                     style={{ padding: "6px 14px", border: `1px solid ${aan ? C.red : C.border}`, background: aan ? "#fff0ee" : "#fff", color: aan ? C.red : C.muted, fontSize: 13, cursor: "pointer", borderRadius: 2 }}>
                     {c.label}
