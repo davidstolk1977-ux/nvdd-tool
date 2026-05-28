@@ -181,7 +181,7 @@ export default function App() {
   const [bg, setBg] = useState("");
   const [nieuws, setNieuws] = useState("");
   const [eigenInput, setEigenInput] = useState("");
-  const [actieveCats, setActieveCats] = useState(["binnenland", "economie", "buitenland"]);
+  const [actieveCats, setActieveCats] = useState(() => ["binnenland", "economie", "buitenland"]);
   const [nieuwsStatus, setNieuwsStatus] = useState("idle");
   const [voorgesprek, setVoorgesprek] = useState("");
   const [andereGasten, setAndereGasten] = useState("");
@@ -352,10 +352,11 @@ export default function App() {
                   <div key={c.id} onClick={() => {
                     const nieuw = aan ? actieveCats.filter(x => x !== c.id) : [...actieveCats, c.id];
                     if (nieuw.length === 0) return;
-                    setActieveCats(nieuw);
+                    const copy = [...nieuw];
+                    setActieveCats(copy);
                     setNieuwsStatus("laden");
-                    fetchNieuws(nieuw)
-                      .then(n => { setNieuws(n); setNieuwsStatus("ok"); })
+                    fetchNieuws(copy)
+                      .then(n => { setNieuws(prev => n); setNieuwsStatus("ok"); })
                       .catch(e => { setNieuwsStatus("fout: " + e.message); });
                   }}
                     style={{ padding: "6px 14px", border: `1px solid ${aan ? C.red : C.border}`, background: aan ? "#fff0ee" : "#fff", color: aan ? C.red : C.muted, fontSize: 13, cursor: "pointer", borderRadius: 2 }}>
