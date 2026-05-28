@@ -345,30 +345,35 @@ export default function App() {
             <div style={{ fontSize: 13, color: C.muted, marginBottom: 10 }}>
               Selecteer categorieën — nieuws wordt automatisch opgehaald. Pas aan of voeg toe wat mist.
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
               {CATEGORIEEN.map(c => {
                 const aan = actieveCats.includes(c.id);
                 return (
-                  <div key={c.id} onClick={() => {
-                    const nieuw = aan ? actieveCats.filter(x => x !== c.id) : [...actieveCats, c.id];
-                    if (nieuw.length === 0) return;
-                    const copy = [...nieuw];
-                    setActieveCats(copy);
-                    setNieuwsStatus("laden");
-                    fetchNieuws(copy)
-                      .then(n => { setNieuws(prev => n); setNieuwsStatus("ok"); })
-                      .catch(e => { setNieuwsStatus("fout: " + e.message); });
-                  }}
-                    style={{ padding: "6px 14px", border: `1px solid ${aan ? C.red : C.border}`, background: aan ? "#fff0ee" : "#fff", color: aan ? C.red : C.muted, fontSize: 13, cursor: "pointer", borderRadius: 2 }}>
-                    {c.label}
-                  </div>
+                  <label key={c.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 14px", border: `1px solid ${aan ? C.red : C.border}`, background: aan ? "#fff0ee" : "#fff", cursor: "pointer", borderRadius: 2, userSelect: "none" }}>
+                    <input type="checkbox" checked={aan} onChange={() => {
+                      if (aan) { setActieveCats(actieveCats.filter(x => x !== c.id)); }
+                      else { setActieveCats([...actieveCats, c.id]); }
+                    }} style={{ accentColor: C.red }} />
+                    <span style={{ fontSize: 13, color: aan ? C.red : C.muted }}>{c.label}</span>
+                  </label>
                 );
               })}
             </div>
-            <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace", marginBottom: 8 }}>
-              {nieuwsStatus === "laden" && "⏳ Nieuws ophalen..."}
-              {nieuwsStatus === "ok" && "✓ Nieuws geladen — verwijder wat niet relevant is, voeg toe wat mist"}
-              {nieuwsStatus.startsWith("fout") && `⚠ ${nieuwsStatus}`}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+              <button onClick={() => {
+                if (actieveCats.length === 0) return;
+                setNieuwsStatus("laden");
+                fetchNieuws(actieveCats)
+                  .then(n => { setNieuws(n); setNieuwsStatus("ok"); })
+                  .catch(e => { setNieuwsStatus("fout: " + e.message); });
+              }} style={{ background: C.red, border: "none", color: "#fff", padding: "7px 18px", fontSize: 11, letterSpacing: 2, fontFamily: "monospace", textTransform: "uppercase", cursor: "pointer" }}>
+                ↺ Ophalen
+              </button>
+              <span style={{ fontSize: 11, color: C.muted, fontFamily: "monospace" }}>
+                {nieuwsStatus === "laden" && "⏳ Bezig..."}
+                {nieuwsStatus === "ok" && "✓ Geladen — pas aan wat nodig is"}
+                {nieuwsStatus.startsWith("fout") && `⚠ ${nieuwsStatus}`}
+              </span>
             </div>
             <textarea value={nieuws} onChange={e => { setNieuws(e.target.value); setTopics(null); setSel(null); setPrep(null); }}
               style={{ ...inp, minHeight: 140, resize: "vertical", lineHeight: 1.7 }}
