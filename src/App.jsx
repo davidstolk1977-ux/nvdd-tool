@@ -21,7 +21,7 @@ Scherp, eerlijk, herkenbaar. De kijker denkt: "eindelijk zegt iemand het."`;
 const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
 
 // FLOW 1: Gast centraal — bedenk onderwerpen bij deze gast
-const GAST_TOPICS_PROMPT = (name, background, nieuws, ronde) => `Je bent een ervaren redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
+const GAST_TOPICS_PROMPT = (name, background, nieuws, ronde, eigenInput) => `Je bent een ervaren redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
 Programmaprofiel: ${SHOW_PROFILE}
 
@@ -48,7 +48,7 @@ Geef ALLEEN een JSON-array terug, niets anders. Geen uitleg, geen markdown, geen
 [{"titel":"Pakkende stelling of vraag (max 8 woorden)","omschrijving":"Wat is de kern en waarom past dit bij deze gast?","profiel":"Wat zegt Nieuws van de Dag hierover wat andere media weglaten?","bron":"Welk actueel nieuws of thema ligt hieraan ten grondslag?"}]`;
 
 // FLOW 2: Onderwerp centraal — bedenk de beste gast
-const ONDERWERP_GASTEN_PROMPT = (onderwerp, nieuws) => `Je bent een ervaren redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
+const ONDERWERP_GASTEN_PROMPT = (onderwerp, nieuws, eigenInput) => `Je bent een ervaren redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
 Programmaprofiel: ${SHOW_PROFILE}
 
@@ -59,7 +59,7 @@ Onderwerp of nieuwsfeit: ${onderwerp}
 Actueel nieuws van vandaag (ter referentie):
 ${nieuws}
 
-Bedenk 4 gasten die perfect passen bij dit onderwerp. Denk aan bekende Nederlanders: journalisten, columnisten, experts, opiniemakers, ervaringsdeskundigen. Mensen die iets scherps kunnen zeggen wat anderen niet zeggen.
+${eigenInput ? `Eigen sturing van de redactie (dit heeft prioriteit):\n${eigenInput}\n\n` : ""}Bedenk 4 gasten die perfect passen bij dit onderwerp. Denk aan bekende Nederlanders: journalisten, columnisten, experts, opiniemakers, ervaringsdeskundigen. Mensen die iets scherps kunnen zeggen wat anderen niet zeggen.
 
 Per gast: wie zijn ze, waarom zijn zij DE beste keuze voor dit onderwerp, en wat is de insteek van het gesprek met hen.
 
@@ -200,6 +200,7 @@ export default function App() {
   const [loadO, setLoadO] = useState(false);
   const [err, setErr] = useState("");
   const [ronde, setRonde] = useState(1);
+  const [eigenInput, setEigenInput] = useState("");
 
   const [gasten, setGasten] = useState(() => { try { return JSON.parse(localStorage.getItem("nvdd_gasten") || "[]"); } catch { return []; } });
   const [nieuweGast, setNieuweGast] = useState({ naam: "", achtergrond: "" });
@@ -220,14 +221,14 @@ export default function App() {
   const resetAll = () => {
     setGastNaam(""); setGastBg(""); setGastTopics(null);
     setOnderwerp(""); setGastSuggesties(null); setGekozenGast(null);
-    setRonde(1); resetOpzet();
+    setRonde(1); setEigenInput(""); resetOpzet();
   };
 
   // Flow 1: genereer onderwerpen bij gast
   const doGastTopics = async (r) => {
     if (!gastNaam.trim() || !gastBg.trim() || loadT) return;
     setLoadT(true); setGastTopics(null); resetOpzet(); setErr("");
-    try { setGastTopics(await callClaude(GAST_TOPICS_PROMPT(gastNaam, gastBg, nieuws, r || 1))); }
+    try { setGastTopics(await callClaude(GAST_TOPICS_PROMPT(gastNaam, gastBg, nieuws, r || 1, eigenInput))); }
     catch (e) { setErr(e.message); }
     setLoadT(false);
   };
@@ -236,7 +237,7 @@ export default function App() {
   const doOnderwerpGasten = async () => {
     if (!onderwerp.trim() || loadT) return;
     setLoadT(true); setGastSuggesties(null); setGekozenGast(null); resetOpzet(); setErr("");
-    try { setGastSuggesties(await callClaude(ONDERWERP_GASTEN_PROMPT(onderwerp, nieuws))); }
+    try { setGastSuggesties(await callClaude(ONDERWERP_GASTEN_PROMPT(onderwerp, nieuws, eigenInput))); }
     catch (e) { setErr(e.message); }
     setLoadT(false);
   };
@@ -375,7 +376,13 @@ export default function App() {
                   <Fld label="Naam gast"><input value={gastNaam} onChange={e => { setGastNaam(e.target.value); setGastTopics(null); resetOpzet(); }} placeholder="bijv. Wierd Duk" style={inp} /></Fld>
                   <Fld label="Achtergrond / expertise"><input value={gastBg} onChange={e => { setGastBg(e.target.value); setGastTopics(null); resetOpzet(); }} placeholder="bijv. Journalist De Telegraaf, schrijft over migratie" style={inp} /></Fld>
                 </div>
-                <div style={{ display: "flex", gap: 10 }}>
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 10, letterSpacing: 2, color: "#445577", fontFamily: "monospace", textTransform: "uppercase", marginBottom: 6 }}>Eigen sturing / insteek (optioneel)</div>
+                  <textarea value={eigenInput} onChange={e => setEigenInput(e.target.value)}
+                    placeholder="Geef een richting of insteek mee — de tool houdt hier rekening mee"
+                    style={{ ...inp, minHeight: 60, resize: "vertical", lineHeight: 1.6, fontSize: 13 }} />
+                </div>
+                                <div style={{ display: "flex", gap: 10 }}>
                   <Btn onClick={() => doGastTopics(1)} disabled={!gastNaam.trim() || !gastBg.trim() || loadT}>{loadT ? "Bezig..." : "Bedenk onderwerpen voor deze gast →"}</Btn>
                   {gastTopics && <BtnSec onClick={resetAll}>Nieuw</BtnSec>}
                 </div>
@@ -413,7 +420,13 @@ export default function App() {
                 <textarea value={onderwerp} onChange={e => { setOnderwerp(e.target.value); setGastSuggesties(null); setGekozenGast(null); resetOpzet(); }}
                   placeholder={"Bijv: statushouders worden niet gehuisvest door gemeenten, 12.000 mensen zitten vast in azc's\n\nOf plak hier een ANP-bericht..."}
                   style={{ ...inp, minHeight: 100, resize: "vertical", lineHeight: 1.6 }} />
-                <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 10, letterSpacing: 2, color: "#445577", fontFamily: "monospace", textTransform: "uppercase", marginBottom: 6 }}>Eigen sturing / insteek (optioneel)</div>
+                  <textarea value={eigenInput} onChange={e => setEigenInput(e.target.value)}
+                    placeholder="Geef een richting of insteek mee — de tool houdt hier rekening mee"
+                    style={{ ...inp, minHeight: 60, resize: "vertical", lineHeight: 1.6, fontSize: 13 }} />
+                </div>
+                                <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
                   <Btn onClick={doOnderwerpGasten} disabled={!onderwerp.trim() || loadT}>{loadT ? "Bezig..." : "Wie is de beste gast? →"}</Btn>
                   {gastSuggesties && <BtnSec onClick={resetAll}>Nieuw</BtnSec>}
                 </div>
