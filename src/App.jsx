@@ -33,6 +33,8 @@ Achtergrond/expertise: ${background}
 Actueel nieuws van vandaag (ter referentie):
 ${nieuws}
 
+${eigenInput ? `!!EIGEN STURING — DIT IS HET VERTREKPUNT. Alle vier onderwerpen MOETEN hierop aansluiten:\n${eigenInput}\n` : ""}
+
 ${ronde > 1 ? `Dit is ronde ${ronde} — bedenk 4 compleet ANDERE onderwerpen dan eerder.` : ""}
 
 Bedenk 4 ORIGINELE gespreksonderwerpen die perfect passen bij deze gast. Denk vanuit de gast: wat is zijn of haar sterkste punt, wat kan hij of zij zeggen wat anderen niet kunnen? Koppel dat aan actueel nieuws of een actueel thema.
@@ -59,7 +61,9 @@ Onderwerp of nieuwsfeit: ${onderwerp}
 Actueel nieuws van vandaag (ter referentie):
 ${nieuws}
 
-${eigenInput ? `Eigen sturing van de redactie (dit heeft prioriteit):\n${eigenInput}\n\n` : ""}Bedenk 4 gasten die perfect passen bij dit onderwerp. Denk aan bekende Nederlanders: journalisten, columnisten, experts, opiniemakers, ervaringsdeskundigen. Mensen die iets scherps kunnen zeggen wat anderen niet zeggen.
+${eigenInput ? `!!EIGEN STURING — DIT IS HET VERTREKPUNT. Houd hier rekening mee bij het kiezen van gasten:\n${eigenInput}\n` : ""}
+
+Bedenk 4 gasten die perfect passen bij dit onderwerp. Denk aan bekende Nederlanders: journalisten, columnisten, experts, opiniemakers, ervaringsdeskundigen. Mensen die iets scherps kunnen zeggen wat anderen niet zeggen.
 
 Per gast: wie zijn ze, waarom zijn zij DE beste keuze voor dit onderwerp, en wat is de insteek van het gesprek met hen.
 
