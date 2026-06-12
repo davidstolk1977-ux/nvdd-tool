@@ -37,8 +37,6 @@ Programmaprofiel: ${SHOW_PROFILE}
 
 ${POLITIEKE_CONTEXT}
 
-Geselecteerde nieuwscategorieën voor vandaag: ${cats.join(", ")}
-
 Actueel nieuws van vandaag:
 ${nieuws}
 
@@ -47,11 +45,14 @@ ${eigenInput ? `Eigen sturing van de redactie (prioriteit):\n${eigenInput}` : ""
 Gast: ${name}
 Achtergrond/expertise: ${background}
 
+Geselecteerde categorieën — gebruik ALLEEN nieuws uit deze categorieën: ${cats.join(", ")}
+Negeer nieuws dat niet in deze categorieën valt. Als er geen relevant nieuws is in de geselecteerde categorieën, zeg dat dan eerlijk.
+
 ${ronde > 1 ? `Dit is ronde ${ronde} — bedenk 4 compleet ANDERE invalshoeken dan eerder.` : ""}
 
 Gebruik het nieuws als springplank. Bedenk 4 ORIGINELE gespreksonderwerpen die:
+- ALLEEN gebaseerd zijn op nieuws uit de geselecteerde categorieën
 - NIET de kop letterlijk herhalen maar er een scherpe invalshoek op vinden
-- Passen bij de geselecteerde categorieën
 - Passen bij de expertise van deze specifieke gast
 - Zeggen wat andere media niet zeggen of niet durven
 - De gewone kijker raken — herkenbaar, direct, opiniërend
