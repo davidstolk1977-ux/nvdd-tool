@@ -178,20 +178,24 @@ export default function App() {
   const [nieuweGast, setNieuweGast] = useState({ naam: "", achtergrond: "" });
   const [geschiedenis, setGeschiedenis] = useState(() => { try { return JSON.parse(localStorage.getItem("nvdd_geschiedenis") || "[]"); } catch { return []; } });
 
-  const laadNieuws = () => {
+  const laadNieuws = (cats) => {
+    const te_laden = cats || geselecteerdeCats;
     setNieuwsStatus("laden");
-    fetch("/api/nieuws")
+    fetch(`/api/nieuws?cats=${te_laden.join(",")}`)
       .then(r => r.json())
       .then(d => { if (d.items) { setNieuws(d.items.slice(0, 10).join("\n")); setNieuwsStatus("ok"); } else { setNieuwsStatus("fout"); } })
       .catch(() => setNieuwsStatus("fout"));
   };
 
-  useEffect(() => { laadNieuws(); }, []);
+  useEffect(() => { laadNieuws(geselecteerdeCats); }, []);
 
   const toggleCat = (id) => {
-    setGeselecteerdeCats(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
+    const nieuw = geselecteerdeCats.includes(id)
+      ? geselecteerdeCats.filter(x => x !== id)
+      : [...geselecteerdeCats, id];
+    if (nieuw.length === 0) return;
+    setGeselecteerdeCats(nieuw);
+    laadNieuws(nieuw);
   };
 
   const slaGastOp = () => {
@@ -316,7 +320,7 @@ export default function App() {
                   </button>
                 );
               })}
-              <button onClick={laadNieuws} style={{ padding: "5px 14px", border: `1px solid ${C.cyanDark}`, background: "transparent", color: C.cyanDark, fontSize: 12, cursor: "pointer", fontFamily: "monospace" }}>
+              <button onClick={() => laadNieuws(geselecteerdeCats)} style={{ padding: "5px 14px", border: `1px solid ${C.cyanDark}`, background: "transparent", color: C.cyanDark, fontSize: 12, cursor: "pointer", fontFamily: "monospace" }}>
                 ↺ Herladen
               </button>
             </div>
