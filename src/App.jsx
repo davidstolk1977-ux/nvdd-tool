@@ -20,32 +20,52 @@ Scherp, eerlijk, herkenbaar. De kijker denkt: "eindelijk zegt iemand het."`;
 
 const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
 
-const TOPICS_PROMPT = (name, background, nieuws, ronde, eigenInput) => `Je bent een ervaren redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
+// FLOW 1: Gast centraal — bedenk onderwerpen bij deze gast
+const GAST_TOPICS_PROMPT = (name, background, nieuws, ronde) => `Je bent een ervaren redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
 Programmaprofiel: ${SHOW_PROFILE}
 
 ${POLITIEKE_CONTEXT}
 
-Actueel nieuws van vandaag:
-${nieuws}
-
-${eigenInput ? `Eigen sturing van de redactie — dit heeft prioriteit:\n${eigenInput}` : ""}
-
 Gast: ${name}
 Achtergrond/expertise: ${background}
 
-${ronde > 1 ? `Dit is ronde ${ronde} — bedenk 4 compleet ANDERE invalshoeken dan eerder.` : ""}
+Actueel nieuws van vandaag (ter referentie):
+${nieuws}
 
-Gebruik het nieuws en de eigen sturing als springplank. Bedenk 4 ORIGINELE gespreksonderwerpen die:
-- Passen bij de eigen sturing als die er is — dat heeft prioriteit
-- NIET de kop letterlijk herhalen maar er een scherpe invalshoek op vinden
-- Passen bij de expertise van deze specifieke gast
-- Zeggen wat andere media niet zeggen of niet durven
-- De gewone kijker raken — herkenbaar, direct, opiniërend
+${ronde > 1 ? `Dit is ronde ${ronde} — bedenk 4 compleet ANDERE onderwerpen dan eerder.` : ""}
+
+Bedenk 4 ORIGINELE gespreksonderwerpen die perfect passen bij deze gast. Denk vanuit de gast: wat is zijn of haar sterkste punt, wat kan hij of zij zeggen wat anderen niet kunnen? Koppel dat aan actueel nieuws of een actueel thema.
+
+De onderwerpen moeten:
+- Passen bij de expertise en het profiel van deze specifieke gast
+- Actueel zijn — gebaseerd op het nieuws van vandaag of een actueel maatschappelijk thema
+- Scherp en opiniërend zijn — niet "wat vindt u van X" maar een stelling of spanningsveld
+- Zeggen wat andere media niet zeggen
 
 Geef ALLEEN een JSON-array terug, niets anders. Geen uitleg, geen markdown, geen backticks.
 
-[{"titel":"Pakkende stelling of vraag (max 8 woorden)","omschrijving":"Het nieuwsfeit plus de scherpe invalshoek.","profiel":"Wat zegt Nieuws van de Dag wat andere media weglaten?","bron":"Welk nieuwsfeit ligt hieraan ten grondslag?"}]`;
+[{"titel":"Pakkende stelling of vraag (max 8 woorden)","omschrijving":"Wat is de kern en waarom past dit bij deze gast?","profiel":"Wat zegt Nieuws van de Dag hierover wat andere media weglaten?","bron":"Welk actueel nieuws of thema ligt hieraan ten grondslag?"}]`;
+
+// FLOW 2: Onderwerp centraal — bedenk de beste gast
+const ONDERWERP_GASTEN_PROMPT = (onderwerp, nieuws) => `Je bent een ervaren redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
+
+Programmaprofiel: ${SHOW_PROFILE}
+
+${POLITIEKE_CONTEXT}
+
+Onderwerp of nieuwsfeit: ${onderwerp}
+
+Actueel nieuws van vandaag (ter referentie):
+${nieuws}
+
+Bedenk 4 gasten die perfect passen bij dit onderwerp. Denk aan bekende Nederlanders: journalisten, columnisten, experts, opiniemakers, ervaringsdeskundigen. Mensen die iets scherps kunnen zeggen wat anderen niet zeggen.
+
+Per gast: wie zijn ze, waarom zijn zij DE beste keuze voor dit onderwerp, en wat is de insteek van het gesprek met hen.
+
+Geef ALLEEN een JSON-array terug, niets anders. Geen uitleg, geen markdown, geen backticks.
+
+[{"naam":"Volledige naam","omschrijving":"Wie is dit en wat is hun expertise?","waarom":"Waarom is dit DE beste gast voor dit onderwerp bij Nieuws van de Dag?","insteek":"Wat gaat dit gesprek opleveren — de scherpe invalshoek"}]`;
 
 const PREP_PROMPT = (name, background, topic, topicDesc, voorgesprek, andereGasten) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
@@ -79,7 +99,7 @@ Geef ALLEEN een JSON-object terug, niets anders. Geen markdown, geen backticks.
 
 const ONLINE_PROMPT = (onderwerp, omschrijving, pres, segmenten) => `Je bent redacteur van Nieuws van de Dag op SBS6 (${VANDAAG}).
 
-Schrijf een online samenvatting voor de digitale redactie. Gebaseerd op dit item:
+Schrijf een online samenvatting voor de digitale redactie op basis van dit item:
 
 Onderwerp: ${onderwerp}
 Omschrijving: ${omschrijving}
@@ -88,20 +108,13 @@ Gesprek: ${(segmenten || []).map(s => s.inhoud).join(" ")}
 
 Schrijf:
 1. Een prikkelende kop (max 12 woorden, met een quote of stelling erin als het kan)
-2. Een samenvatting van 3-4 zinnen die het item uitlegt voor online lezers — direct, helder, geen tv-jargon. In de stijl van Nieuws van de Dag: scherp, voor de gewone man, opiniërend.
+2. Een samenvatting van 3-4 zinnen — direct, helder, geen tv-jargon, in de stijl van Nieuws van de Dag
 
-Kijk naar deze voorbeelden van goede online koppen en samenvattingen:
-
-VOORBEELD 1:
+VOORBEELDEN:
 Kop: Onthullende documentaire over FvD: 'Waarom kijkt Nederland hier nu pas van op?'
-Samenvatting: Het land is in de ban van de documentaire 'De duistere kant van Forum voor Democratie'. Antisemitisme, minachting naar vrouwen, machtsmisbruik en alles draait om geld. Bram Moszkowicz schrok van de antisemitische uitspraken. Volgens FvD-watcher Chris Aalberts is de vraag niet wat er in de documentaire zit, maar waarom Nederland hier nu pas van opkijkt.
-
-VOORBEELD 2:
-Kop: Natuur op Wadden op slot om natuur te beschermen
-Samenvatting: Rijkswaterstaat wil alle natuur op de Waddeneilanden afsluiten voor publiek om de natuur te beschermen. Maar eilanders zijn woedend: wat blijft er over van hun leefomgeving? Verslaggever Suzette Nesselaar sprak bewoners en ondernemers op Vlieland. Telegraaf columnist Marianne Zwagerman hoort al jaren de horrorverhalen van de groene maffia en is klaar met deze propagandamachine.
+Samenvatting: Het land is in de ban van de documentaire over Forum voor Democratie. Antisemitisme, minachting naar vrouwen, machtsmisbruik. Bram Moszkowicz schrok van de antisemitische uitspraken. Volgens FvD-watcher Chris Aalberts is de vraag niet wat er in de documentaire zit, maar waarom Nederland hier nu pas van opkijkt.
 
 Geef ALLEEN een JSON-object terug, geen markdown, geen backticks.
-
 {"kop":"De kop hier","samenvatting":"De samenvatting hier"}`;
 
 function extractJSON(text) {
@@ -127,12 +140,11 @@ async function callClaude(prompt) {
 function exportOpzet(prep, sel, name, andereGasten, online) {
   const lines = [
     `NIEUWS VAN DE DAG — SBS6`, `${VANDAAG}`, ``,
-    `ONDERWERP: ${sel.titel}`,
+    `ONDERWERP: ${sel?.titel || ""}`,
     `GAST: ${name}${andereGasten ? ` / ${andereGasten}` : ""}`, ``, `---`, ``, `PRES`, ``,
     prep.pres, ``, `---`, ``,
     ...(prep.segmenten || []).flatMap(s => [`${s.nummer} ${s.type} ${s.label}`, ``, s.inhoud, ``, `---`, ``]),
-    ...(prep.beeldvullers || []), ``,
-    prep.overstart || "", ``, `---`, ``, `BEELD`, ``,
+    ...(prep.beeldvullers || []), ``, prep.overstart || "", ``, `---`, ``, `BEELD`, ``,
     ...(prep.beeld || []).map((b, i) => `${i + 1}. ${b}`),
     ``, `---`, ``, `ONLINE`, ``,
     online ? `${online.kop}\n\n${online.samenvatting}` : "(nog niet gegenereerd)",
@@ -160,17 +172,29 @@ const inp = {
 
 export default function App() {
   const [tab, setTab] = useState("nieuw");
-  const [name, setName] = useState("");
-  const [bg, setBg] = useState("");
+  const [flow, setFlow] = useState("gast"); // "gast" of "onderwerp"
+
+  // Gedeeld
   const [nieuws, setNieuws] = useState("");
   const [nieuwsStatus, setNieuwsStatus] = useState("laden");
-  const [eigenInput, setEigenInput] = useState("");
+
+  // Flow 1: gast centraal
+  const [gastNaam, setGastNaam] = useState("");
+  const [gastBg, setGastBg] = useState("");
+  const [gastTopics, setGastTopics] = useState(null);
+
+  // Flow 2: onderwerp centraal
+  const [onderwerp, setOnderwerp] = useState("");
+  const [gastSuggesties, setGastSuggesties] = useState(null);
+  const [gekozenGast, setGekozenGast] = useState(null);
+
+  // Gespreksopzet (gedeeld)
+  const [sel, setSel] = useState(null);
   const [voorgesprek, setVoorgesprek] = useState("");
   const [andereGasten, setAndereGasten] = useState("");
-  const [topics, setTopics] = useState(null);
-  const [sel, setSel] = useState(null);
   const [prep, setPrep] = useState(null);
   const [online, setOnline] = useState(null);
+
   const [loadT, setLoadT] = useState(false);
   const [loadP, setLoadP] = useState(false);
   const [loadO, setLoadO] = useState(false);
@@ -191,31 +215,42 @@ export default function App() {
 
   useEffect(() => { laadNieuws(); }, []);
 
-  const slaGastOp = () => {
-    if (!nieuweGast.naam.trim()) return;
-    const updated = [...gasten, { ...nieuweGast, id: Date.now() }];
-    setGasten(updated);
-    localStorage.setItem("nvdd_gasten", JSON.stringify(updated));
-    setNieuweGast({ naam: "", achtergrond: "" });
+  const resetOpzet = () => { setSel(null); setPrep(null); setOnline(null); setErr(""); setVoorgesprek(""); setAndereGasten(""); };
+
+  const resetAll = () => {
+    setGastNaam(""); setGastBg(""); setGastTopics(null);
+    setOnderwerp(""); setGastSuggesties(null); setGekozenGast(null);
+    setRonde(1); resetOpzet();
   };
 
-  const canGo = name.trim().length > 1 && bg.trim().length > 4 && nieuws.trim().length > 20;
-
-  const doTopics = async (r) => {
-    if (!canGo || loadT) return;
-    setLoadT(true); setTopics(null); setSel(null); setPrep(null); setOnline(null); setErr("");
-    try { setTopics(await callClaude(TOPICS_PROMPT(name, bg, nieuws, r, eigenInput))); }
+  // Flow 1: genereer onderwerpen bij gast
+  const doGastTopics = async (r) => {
+    if (!gastNaam.trim() || !gastBg.trim() || loadT) return;
+    setLoadT(true); setGastTopics(null); resetOpzet(); setErr("");
+    try { setGastTopics(await callClaude(GAST_TOPICS_PROMPT(gastNaam, gastBg, nieuws, r || 1))); }
     catch (e) { setErr(e.message); }
     setLoadT(false);
   };
 
+  // Flow 2: genereer gastensuggesties bij onderwerp
+  const doOnderwerpGasten = async () => {
+    if (!onderwerp.trim() || loadT) return;
+    setLoadT(true); setGastSuggesties(null); setGekozenGast(null); resetOpzet(); setErr("");
+    try { setGastSuggesties(await callClaude(ONDERWERP_GASTEN_PROMPT(onderwerp, nieuws))); }
+    catch (e) { setErr(e.message); }
+    setLoadT(false);
+  };
+
+  // Gespreksopzet genereren
   const doPrep = async () => {
-    if (!sel || loadP) return;
+    const naam = flow === "gast" ? gastNaam : gekozenGast?.naam || "";
+    const bg = flow === "gast" ? gastBg : gekozenGast?.omschrijving || "";
+    if (!sel || !naam || loadP) return;
     setPrep(null); setOnline(null); setLoadP(true); setErr("");
     try {
-      const p = await callClaude(PREP_PROMPT(name, bg, sel.titel, sel.omschrijving, voorgesprek, andereGasten));
+      const p = await callClaude(PREP_PROMPT(naam, bg, sel.titel || sel.naam, sel.omschrijving || sel.insteek, voorgesprek, andereGasten));
       setPrep(p);
-      const item = { id: Date.now(), datum: VANDAAG, gast: name, onderwerp: sel.titel, prep: p, sel };
+      const item = { id: Date.now(), datum: VANDAAG, gast: naam, onderwerp: sel.titel || sel.naam, prep: p, sel };
       const updated = [item, ...geschiedenis].slice(0, 20);
       setGeschiedenis(updated);
       localStorage.setItem("nvdd_geschiedenis", JSON.stringify(updated));
@@ -226,20 +261,29 @@ export default function App() {
   const doOnline = async () => {
     if (!prep || loadO) return;
     setLoadO(true); setErr("");
-    try { setOnline(await callClaude(ONLINE_PROMPT(sel.titel, sel.omschrijving, prep.pres, prep.segmenten))); }
+    try { setOnline(await callClaude(ONLINE_PROMPT(sel?.titel || sel?.naam || "", sel?.omschrijving || sel?.insteek || "", prep.pres, prep.segmenten))); }
     catch (e) { setErr(e.message); }
     setLoadO(false);
   };
 
-  const reset = () => { setName(""); setBg(""); setTopics(null); setSel(null); setPrep(null); setOnline(null); setErr(""); setVoorgesprek(""); setAndereGasten(""); setRonde(1); setEigenInput(""); };
+  const slaGastOp = () => {
+    if (!nieuweGast.naam.trim()) return;
+    const updated = [...gasten, { ...nieuweGast, id: Date.now() }];
+    setGasten(updated);
+    localStorage.setItem("nvdd_gasten", JSON.stringify(updated));
+    setNieuweGast({ naam: "", achtergrond: "" });
+  };
+
+  const huidigNaam = flow === "gast" ? gastNaam : gekozenGast?.naam || "";
 
   return (
     <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "Georgia, serif", color: C.white }}>
 
+      {/* HEADER */}
       <div style={{ background: "linear-gradient(135deg, #0d1228 0%, #1a2040 50%, #0d1a35 100%)", borderBottom: `1px solid ${C.border}`, padding: "0 28px" }}>
-        <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 0" }}>
+        <div style={{ maxWidth: 920, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 0" }}>
           <div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: C.cyan, letterSpacing: 1, lineHeight: 1, fontFamily: "Georgia, serif" }}>Nieuws van de Dag</div>
+            <div style={{ fontSize: 26, fontWeight: 900, color: C.cyan, letterSpacing: 1, lineHeight: 1 }}>Nieuws van de Dag</div>
             <div style={{ fontSize: 10, color: C.muted, letterSpacing: 4, marginTop: 3, fontFamily: "monospace", textTransform: "uppercase" }}>Redactietool · SBS6 · {VANDAAG}</div>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
@@ -253,11 +297,12 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "36px 28px" }}>
+      <div style={{ maxWidth: 920, margin: "0 auto", padding: "36px 28px" }}>
 
+        {/* TAB: GASTEN */}
         {tab === "gasten" && (
           <div>
-            <Lbl color={C.cyan}>Gastendatabase</Lbl>
+            <Lbl>Gastendatabase</Lbl>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12, marginBottom: 12 }}>
               <Fld label="Naam"><input value={nieuweGast.naam} onChange={e => setNieuweGast(g => ({ ...g, naam: e.target.value }))} placeholder="bijv. Wierd Duk" style={inp} /></Fld>
               <Fld label="Achtergrond"><input value={nieuweGast.achtergrond} onChange={e => setNieuweGast(g => ({ ...g, achtergrond: e.target.value }))} placeholder="bijv. Journalist De Telegraaf, migratie" style={inp} /></Fld>
@@ -267,9 +312,9 @@ export default function App() {
               {gasten.length === 0 && <div style={{ color: C.muted, fontSize: 14 }}>Nog geen gasten opgeslagen.</div>}
               {gasten.map(g => (
                 <div key={g.id} style={{ background: C.surface, border: `1px solid ${C.border}`, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div><div style={{ fontWeight: 700, fontSize: 15, color: C.white }}>{g.naam}</div><div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{g.achtergrond}</div></div>
+                  <div><div style={{ fontWeight: 700, fontSize: 15 }}>{g.naam}</div><div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>{g.achtergrond}</div></div>
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button onClick={() => { setName(g.naam); setBg(g.achtergrond); setTab("nieuw"); }} style={{ background: C.cyan, border: "none", color: C.bg, padding: "6px 14px", cursor: "pointer", fontSize: 11, fontFamily: "monospace", fontWeight: 700 }}>Gebruik</button>
+                    <button onClick={() => { setGastNaam(g.naam); setGastBg(g.achtergrond); setFlow("gast"); setTab("nieuw"); }} style={{ background: C.cyan, border: "none", color: C.bg, padding: "6px 14px", cursor: "pointer", fontSize: 11, fontFamily: "monospace", fontWeight: 700 }}>Gebruik</button>
                     <button onClick={() => { const u = gasten.filter(x => x.id !== g.id); setGasten(u); localStorage.setItem("nvdd_gasten", JSON.stringify(u)); }} style={{ background: "none", border: `1px solid ${C.border}`, color: C.muted, padding: "6px 14px", cursor: "pointer", fontSize: 11 }}>✕</button>
                   </div>
                 </div>
@@ -278,13 +323,14 @@ export default function App() {
           </div>
         )}
 
+        {/* TAB: GESCHIEDENIS */}
         {tab === "geschiedenis" && (
           <div>
-            <Lbl color={C.cyan}>Opgeslagen opzetten</Lbl>
+            <Lbl>Opgeslagen opzetten</Lbl>
             {geschiedenis.length === 0 && <div style={{ color: C.muted, fontSize: 14 }}>Nog geen opzetten gegenereerd.</div>}
             {geschiedenis.map(item => (
               <div key={item.id} style={{ background: C.surface, border: `1px solid ${C.border}`, padding: "16px 20px", marginBottom: 10, cursor: "pointer" }}
-                onClick={() => { setPrep(item.prep); setSel(item.sel); setName(item.gast); setTab("nieuw"); }}>
+                onClick={() => { setPrep(item.prep); setSel(item.sel); setGastNaam(item.gast); setTab("nieuw"); }}>
                 <div style={{ fontWeight: 700, fontSize: 15, color: C.cyan }}>{item.onderwerp}</div>
                 <div style={{ fontSize: 12, color: C.muted, marginTop: 4, fontFamily: "monospace" }}>{item.gast} · {item.datum}</div>
               </div>
@@ -292,70 +338,112 @@ export default function App() {
           </div>
         )}
 
+        {/* TAB: NIEUW ITEM */}
         {tab === "nieuw" && (
           <div>
-            <Lbl color={C.cyan}>01 — Nieuws van vandaag</Lbl>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
-              <button onClick={laadNieuws} style={{ padding: "4px 12px", border: `1px solid ${C.cyanDark}`, background: "transparent", color: C.cyanDark, fontSize: 11, cursor: "pointer", fontFamily: "monospace" }}>↺ Herladen</button>
-            </div>
-            <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace", marginBottom: 8 }}>
-              {nieuwsStatus === "laden" && "⏳ Nieuws ophalen..."}
-              {nieuwsStatus === "ok" && "✓ Geladen — pas aan of verwijder wat niet relevant is"}
-              {nieuwsStatus === "fout" && "⚠ Kon nieuws niet ophalen — typ zelf koppen in"}
-            </div>
-            <textarea value={nieuws} onChange={e => { setNieuws(e.target.value); setTopics(null); setSel(null); setPrep(null); }}
-              style={{ ...inp, minHeight: 130, resize: "vertical", lineHeight: 1.7 }}
-              placeholder="Nieuws wordt automatisch geladen..." />
 
-            <div style={{ height: 20 }} />
-            <Lbl color={C.cyan}>Eigen sturing (optioneel)</Lbl>
-            <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace", marginBottom: 8 }}>Plak hier het artikel of onderwerp waar je op wilt doorgaan, of geef een richting mee</div>
-            <textarea value={eigenInput} onChange={e => { setEigenInput(e.target.value); setTopics(null); setSel(null); setPrep(null); }}
-              placeholder="Bijv: we gaan door op de FvD documentaire — of plak een ANP-bericht"
-              style={{ ...inp, minHeight: 80, resize: "vertical", lineHeight: 1.6 }} />
-
-            <div style={{ height: 28 }} />
-            <Lbl color={C.cyan}>02 — Gast invoeren</Lbl>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12, marginBottom: 14 }}>
-              <Fld label="Naam gast"><input value={name} onChange={e => { setName(e.target.value); setTopics(null); setSel(null); setPrep(null); }} placeholder="bijv. Wierd Duk" style={inp} /></Fld>
-              <Fld label="Achtergrond / expertise"><input value={bg} onChange={e => { setBg(e.target.value); setTopics(null); setSel(null); setPrep(null); }} placeholder="bijv. Journalist De Telegraaf, schrijft over migratie" style={inp} /></Fld>
-            </div>
-            <div style={{ display: "flex", gap: 10 }}>
-              <Btn onClick={() => doTopics(1)} disabled={!canGo || loadT}>{loadT ? "Bezig..." : "Genereer onderwerpen →"}</Btn>
-              {(name || topics) && <BtnSec onClick={reset}>Nieuw</BtnSec>}
+            {/* FLOW SWITCHER */}
+            <div style={{ display: "flex", gap: 0, marginBottom: 32, borderBottom: `1px solid ${C.border}` }}>
+              {[
+                { id: "gast", label: "Vertrekpunt: gast", sub: "Ik heb een gast — bedenk onderwerpen" },
+                { id: "onderwerp", label: "Vertrekpunt: onderwerp", sub: "Ik heb een onderwerp — wie is de beste gast?" }
+              ].map(f => (
+                <button key={f.id} onClick={() => { setFlow(f.id); resetAll(); }}
+                  style={{ flex: 1, background: "none", border: "none", borderBottom: flow === f.id ? `3px solid ${C.cyan}` : "3px solid transparent", padding: "14px 20px", cursor: "pointer", textAlign: "left" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: flow === f.id ? C.cyan : C.muted, fontFamily: "Georgia, serif" }}>{f.label}</div>
+                  <div style={{ fontSize: 11, color: C.dim, marginTop: 3, fontFamily: "monospace" }}>{f.sub}</div>
+                </button>
+              ))}
             </div>
 
-            {err && <div style={{ marginTop: 16, color: "#ff6b6b", fontSize: 12, fontFamily: "monospace", padding: "10px 14px", border: "1px solid #ff4444", background: "#1a0808" }}>⚠ {err}</div>}
+            {/* NIEUWS — altijd zichtbaar als achtergrond */}
+            <details style={{ marginBottom: 28 }}>
+              <summary style={{ fontSize: 10, letterSpacing: 3, color: C.dim, fontFamily: "monospace", textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}>
+                Nieuws van vandaag (achtergrond) — {nieuwsStatus === "ok" ? "✓ geladen" : nieuwsStatus === "laden" ? "laden..." : "⚠ fout"}
+                <button onClick={e => { e.preventDefault(); laadNieuws(); }} style={{ marginLeft: 12, background: "none", border: `1px solid ${C.dim}`, color: C.dim, padding: "2px 8px", cursor: "pointer", fontSize: 10, fontFamily: "monospace" }}>↺</button>
+              </summary>
+              <textarea value={nieuws} onChange={e => setNieuws(e.target.value)}
+                style={{ ...inp, minHeight: 100, resize: "vertical", lineHeight: 1.6, fontSize: 13, marginTop: 8 }}
+                placeholder="Nieuws wordt automatisch geladen..." />
+            </details>
 
-            {topics && (
-              <div style={{ marginTop: 36 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                  <Lbl color={C.cyan}>03 — Kies een onderwerp</Lbl>
-                  <button onClick={() => { const r = ronde + 1; setRonde(r); doTopics(r); }} disabled={loadT}
-                    style={{ background: "none", border: `1px solid ${C.border}`, color: C.muted, padding: "5px 14px", cursor: "pointer", fontSize: 10, letterSpacing: 2, fontFamily: "monospace", textTransform: "uppercase" }}>
-                    ↺ Andere onderwerpen
-                  </button>
+            {/* FLOW 1: GAST CENTRAAL */}
+            {flow === "gast" && (
+              <div>
+                <Lbl>01 — Gast invoeren</Lbl>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12, marginBottom: 14 }}>
+                  <Fld label="Naam gast"><input value={gastNaam} onChange={e => { setGastNaam(e.target.value); setGastTopics(null); resetOpzet(); }} placeholder="bijv. Wierd Duk" style={inp} /></Fld>
+                  <Fld label="Achtergrond / expertise"><input value={gastBg} onChange={e => { setGastBg(e.target.value); setGastTopics(null); resetOpzet(); }} placeholder="bijv. Journalist De Telegraaf, schrijft over migratie" style={inp} /></Fld>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  {topics.map((t, i) => {
-                    const active = sel?.titel === t.titel;
-                    return (
-                      <div key={i} onClick={() => { setSel(t); setPrep(null); setOnline(null); }}
-                        style={{ background: active ? "#0d2a2a" : C.surface, border: `1px solid ${active ? C.cyan : C.border}`, padding: 18, cursor: "pointer" }}>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: active ? C.cyan : C.white, marginBottom: 8, lineHeight: 1.4 }}>{t.titel}</div>
-                        <div style={{ fontSize: 13, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>{t.omschrijving}</div>
-                        {t.bron && <div style={{ fontSize: 11, color: C.dim, fontFamily: "monospace", marginBottom: 10 }}>📰 {t.bron}</div>}
-                        <div style={{ fontSize: 11, color: C.cyan, lineHeight: 1.5, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>↗ {t.profiel}</div>
-                      </div>
-                    );
-                  })}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <Btn onClick={() => doGastTopics(1)} disabled={!gastNaam.trim() || !gastBg.trim() || loadT}>{loadT ? "Bezig..." : "Bedenk onderwerpen voor deze gast →"}</Btn>
+                  {gastTopics && <BtnSec onClick={resetAll}>Nieuw</BtnSec>}
                 </div>
+
+                {gastTopics && (
+                  <div style={{ marginTop: 32 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                      <Lbl>02 — Kies een onderwerp</Lbl>
+                      <button onClick={() => { const r = ronde + 1; setRonde(r); doGastTopics(r); }} style={{ background: "none", border: `1px solid ${C.border}`, color: C.muted, padding: "5px 14px", cursor: "pointer", fontSize: 10, letterSpacing: 2, fontFamily: "monospace", textTransform: "uppercase" }}>↺ Andere onderwerpen</button>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      {gastTopics.map((t, i) => {
+                        const active = sel?.titel === t.titel;
+                        return (
+                          <div key={i} onClick={() => { setSel(t); setPrep(null); setOnline(null); }}
+                            style={{ background: active ? "#0d2a2a" : C.surface, border: `1px solid ${active ? C.cyan : C.border}`, padding: 18, cursor: "pointer" }}>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: active ? C.cyan : C.white, marginBottom: 8, lineHeight: 1.4 }}>{t.titel}</div>
+                            <div style={{ fontSize: 13, color: C.muted, marginBottom: 10, lineHeight: 1.6 }}>{t.omschrijving}</div>
+                            {t.bron && <div style={{ fontSize: 11, color: C.dim, fontFamily: "monospace", marginBottom: 10 }}>📰 {t.bron}</div>}
+                            <div style={{ fontSize: 11, color: C.cyan, lineHeight: 1.5, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>↗ {t.profiel}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {sel && (
+            {/* FLOW 2: ONDERWERP CENTRAAL */}
+            {flow === "onderwerp" && (
+              <div>
+                <Lbl>01 — Onderwerp invoeren</Lbl>
+                <div style={{ fontSize: 11, color: C.muted, fontFamily: "monospace", marginBottom: 8 }}>Plak een ANP-bericht, een nieuwskop of beschrijf het onderwerp</div>
+                <textarea value={onderwerp} onChange={e => { setOnderwerp(e.target.value); setGastSuggesties(null); setGekozenGast(null); resetOpzet(); }}
+                  placeholder={"Bijv: statushouders worden niet gehuisvest door gemeenten, 12.000 mensen zitten vast in azc's\n\nOf plak hier een ANP-bericht..."}
+                  style={{ ...inp, minHeight: 100, resize: "vertical", lineHeight: 1.6 }} />
+                <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+                  <Btn onClick={doOnderwerpGasten} disabled={!onderwerp.trim() || loadT}>{loadT ? "Bezig..." : "Wie is de beste gast? →"}</Btn>
+                  {gastSuggesties && <BtnSec onClick={resetAll}>Nieuw</BtnSec>}
+                </div>
+
+                {gastSuggesties && (
+                  <div style={{ marginTop: 32 }}>
+                    <Lbl>02 — Kies een gast</Lbl>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                      {gastSuggesties.map((g, i) => {
+                        const active = gekozenGast?.naam === g.naam;
+                        return (
+                          <div key={i} onClick={() => { setGekozenGast(g); setSel({ titel: onderwerp.slice(0, 60), omschrijving: g.insteek }); setPrep(null); setOnline(null); }}
+                            style={{ background: active ? "#0d2a2a" : C.surface, border: `1px solid ${active ? C.cyan : C.border}`, padding: 18, cursor: "pointer" }}>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: active ? C.cyan : C.white, marginBottom: 6 }}>{g.naam}</div>
+                            <div style={{ fontSize: 12, color: C.muted, marginBottom: 10, lineHeight: 1.5 }}>{g.omschrijving}</div>
+                            <div style={{ fontSize: 12, color: active ? C.cyan : C.muted, marginBottom: 10, lineHeight: 1.5, fontStyle: "italic" }}>{g.insteek}</div>
+                            <div style={{ fontSize: 11, color: C.cyan, lineHeight: 1.5, borderTop: `1px solid ${C.border}`, paddingTop: 10 }}>↗ {g.waarom}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* VOORGESPREK + OPZET — beide flows */}
+            {sel && (flow === "gast" || gekozenGast) && (
               <div style={{ marginTop: 36 }}>
-                <Lbl color={C.cyan}>04 — Voorgesprek & andere gasten (optioneel)</Lbl>
+                <Lbl>0{flow === "gast" ? "3" : "3"} — Voorgesprek & andere gasten (optioneel)</Lbl>
                 <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>Vul dit in vóór je de opzet genereert</div>
                 <Fld label="Voorgesprek redacteur met gast">
                   <textarea value={voorgesprek} onChange={e => setVoorgesprek(e.target.value)}
@@ -367,7 +455,10 @@ export default function App() {
                   <input value={andereGasten} onChange={e => setAndereGasten(e.target.value)} placeholder="bijv. Verslaggever Suzette Nesselaar vanuit Den Haag" style={inp} />
                 </Fld>
                 <div style={{ marginTop: 16 }}>
-                  <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>Geselecteerd: <span style={{ color: C.cyan, fontWeight: 700 }}>{sel.titel}</span></div>
+                  <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
+                    Gast: <span style={{ color: C.cyan, fontWeight: 700 }}>{huidigNaam}</span>
+                    {sel.titel && <span> — Onderwerp: <span style={{ color: C.cyan, fontWeight: 700 }}>{sel.titel}</span></span>}
+                  </div>
                   <Btn onClick={doPrep} disabled={loadP}>{loadP ? "Bezig..." : "Genereer gespreksopzet →"}</Btn>
                 </div>
               </div>
@@ -375,18 +466,21 @@ export default function App() {
 
             {loadP && <div style={{ textAlign: "center", padding: "40px 0", color: C.muted, fontFamily: "monospace", fontSize: 11, letterSpacing: 3, textTransform: "uppercase" }}>Opzet wordt opgebouwd...</div>}
 
+            {err && <div style={{ marginTop: 16, color: "#ff6b6b", fontSize: 12, fontFamily: "monospace", padding: "10px 14px", border: "1px solid #ff4444", background: "#1a0808" }}>⚠ {err}</div>}
+
+            {/* GESPREKSOPZET */}
             {prep && sel && (
               <div style={{ marginTop: 36 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                  <Lbl color={C.cyan}>05 — Gespreksopzet</Lbl>
-                  <button onClick={() => exportOpzet(prep, sel, name, andereGasten, online)}
+                  <Lbl>04 — Gespreksopzet</Lbl>
+                  <button onClick={() => exportOpzet(prep, sel, huidigNaam, andereGasten, online)}
                     style={{ background: C.cyan, border: "none", color: C.bg, padding: "8px 18px", cursor: "pointer", fontSize: 11, letterSpacing: 2, fontFamily: "monospace", textTransform: "uppercase", fontWeight: 700 }}>
                     ↓ Download
                   </button>
                 </div>
                 <div style={{ borderLeft: `3px solid ${C.cyan}`, paddingLeft: 16, marginBottom: 24 }}>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: C.white }}>{sel.titel}</div>
-                  <div style={{ fontSize: 12, color: C.muted, marginTop: 4, fontFamily: "monospace" }}>{name}{andereGasten ? ` · ${andereGasten}` : ""} · {VANDAAG}</div>
+                  <div style={{ fontSize: 18, fontWeight: 700 }}>{sel.titel}</div>
+                  <div style={{ fontSize: 12, color: C.muted, marginTop: 4, fontFamily: "monospace" }}>{huidigNaam}{andereGasten ? ` · ${andereGasten}` : ""} · {VANDAAG}</div>
                 </div>
 
                 <Blk label="PRES"><div style={{ fontSize: 16, lineHeight: 1.9, fontWeight: 500, color: C.white }}>{prep.pres}</div></Blk>
@@ -416,19 +510,15 @@ export default function App() {
                   </Blk>
                 )}
 
-                {/* ONLINE SAMENVATTING */}
                 <div style={{ marginTop: 32, borderTop: `1px solid ${C.border}`, paddingTop: 28 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                    <Lbl color={C.cyan}>06 — Online samenvatting</Lbl>
+                    <Lbl>05 — Online samenvatting</Lbl>
                     <Btn onClick={doOnline} disabled={loadO}>{loadO ? "Bezig..." : "Genereer online tekst →"}</Btn>
                   </div>
-
                   {online ? (
-                    <div>
-                      <div style={{ background: C.surfaceLight, border: `1px solid ${C.cyan}`, padding: "20px 22px" }}>
-                        <div style={{ fontSize: 17, fontWeight: 700, color: C.white, marginBottom: 12, lineHeight: 1.4 }}>{online.kop}</div>
-                        <div style={{ fontSize: 14, lineHeight: 1.8, color: "#ccdaee" }}>{online.samenvatting}</div>
-                      </div>
+                    <div style={{ background: C.surfaceLight, border: `1px solid ${C.cyan}`, padding: "20px 22px" }}>
+                      <div style={{ fontSize: 17, fontWeight: 700, color: C.white, marginBottom: 12, lineHeight: 1.4 }}>{online.kop}</div>
+                      <div style={{ fontSize: 14, lineHeight: 1.8, color: "#ccdaee" }}>{online.samenvatting}</div>
                     </div>
                   ) : (
                     <div style={{ fontSize: 12, color: C.dim, fontFamily: "monospace" }}>Klik op de knop om een kop en samenvatting voor de online redactie te genereren.</div>
@@ -443,8 +533,8 @@ export default function App() {
   );
 }
 
-function Lbl({ children, color }) {
-  return <div style={{ fontSize: 10, letterSpacing: 4, color: color || "#7dd4d4", fontFamily: "monospace", textTransform: "uppercase", marginBottom: 14 }}>{children}</div>;
+function Lbl({ children }) {
+  return <div style={{ fontSize: 10, letterSpacing: 4, color: "#7dd4d4", fontFamily: "monospace", textTransform: "uppercase", marginBottom: 14 }}>{children}</div>;
 }
 function Fld({ label, children }) {
   return (
