@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   const cats = req.query.cats ? req.query.cats.split(",") : ["binnenland", "economie", "buitenland"];
   const mediaCategories = [...new Set(cats.map(c => catMap[c] || "general"))].join(",");
 
-  const url = `https://api.mediastack.com/v1/news?access_key=${key}&countries=nl&languages=nl&categories=${mediaCategories}&limit=10&sort=published_desc`;
+  const url = `http://api.mediastack.com/v1/news?access_key=${key}&countries=nl&languages=nl&categories=${mediaCategories}&limit=10&sort=published_desc`;
 
   try {
     const r = await fetch(url);
