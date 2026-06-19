@@ -380,11 +380,7 @@ export default function App() {
               </div>
               <textarea value={nieuws} onChange={e => setNieuws(e.target.value)}
                 style={{ ...inp, minHeight: 160, resize: "vertical", lineHeight: 1.8, fontSize: 13, background: C.surface }}
-                placeholder={"Plak hier nieuwskoppen van vandaag, één per regel. Bijvoorbeeld:
-
-- Kabinet presenteert Voorjaarsnota: bezuinigingen op zorg en onderwijs
-- Rechter fluit NCTV terug na omstreden terreurrapport
-- Woningmarkt koelt af: minder overbiedingen in Randstad
+                placeholder="Plak hier nieuwskoppen van vandaag, één per regel. Hoe actueler het nieuws, hoe scherper de onderwerpen."
 
 Hoe actueler het nieuws, hoe scherper de onderwerpen."} />
               {nieuwsStatus === "fout" && <div style={{ fontSize: 11, color: "#ff6b6b", fontFamily: "monospace", marginTop: 6 }}>⚠ Automatisch laden mislukt — plak zelf koppen in</div>}
