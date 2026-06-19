@@ -37,6 +37,12 @@ ${eigenInput ? `!!EIGEN STURING — DIT IS HET VERTREKPUNT. Alle vier onderwerpe
 
 ${ronde > 1 ? `Dit is ronde ${ronde} — bedenk 4 compleet ANDERE onderwerpen dan eerder.` : ""}
 
+KRITIEKE REGEL — VERZIN GEEN FEITEN:
+- Verzin GEEN data, gebeurtenissen, gepresenteerde stukken, namen van bewindspersonen die iets "morgen" of "vandaag" doen, tenzij dit letterlijk in het nieuws hierboven of in de eigen sturing staat.
+- Als de eigen sturing een datum of gebeurtenis noemt, gebruik die EXACT zoals gegeven — verzin geen aanvullende details erover (wie het presenteert, wat erin staat, etc).
+- Bedenk de INVALSHOEK en STELLING zelf (dat mag origineel zijn), maar de onderliggende FEITEN moeten kloppen of mogen niet hard beweerd worden als ze niet bekend zijn.
+- Twijfel je over een feit? Formuleer het dan als vraag of als algemeen thema, niet als concrete bewering.
+
 Bedenk 4 ORIGINELE gespreksonderwerpen die perfect passen bij deze gast. Denk vanuit de gast: wat is zijn of haar sterkste punt, wat kan hij of zij zeggen wat anderen niet kunnen? Koppel dat aan actueel nieuws of een actueel thema.
 
 De onderwerpen moeten:
@@ -361,16 +367,28 @@ export default function App() {
               ))}
             </div>
 
-            {/* NIEUWS — altijd zichtbaar als achtergrond */}
-            <details style={{ marginBottom: 28 }}>
-              <summary style={{ fontSize: 10, letterSpacing: 3, color: C.dim, fontFamily: "monospace", textTransform: "uppercase", cursor: "pointer", marginBottom: 8 }}>
-                Nieuws van vandaag (achtergrond) — {nieuwsStatus === "ok" ? "✓ geladen" : nieuwsStatus === "laden" ? "laden..." : "⚠ fout"}
-                <button onClick={e => { e.preventDefault(); laadNieuws(); }} style={{ marginLeft: 12, background: "none", border: `1px solid ${C.dim}`, color: C.dim, padding: "2px 8px", cursor: "pointer", fontSize: 10, fontFamily: "monospace" }}>↺</button>
-              </summary>
+            {/* NIEUWS — prominent bovenaan */}
+            <div style={{ background: C.surfaceLight, border: `1px solid ${C.cyan}`, padding: "20px 22px", marginBottom: 32 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontSize: 11, letterSpacing: 3, color: C.cyan, fontFamily: "monospace", textTransform: "uppercase", fontWeight: 700 }}>Stap 1 — Nieuws van vandaag</div>
+                  <div style={{ fontSize: 12, color: C.muted, marginTop: 4, fontFamily: "monospace" }}>Plak hier de koppen van vandaag van NOS.nl of Telegraaf.nl — dit bepaalt de kwaliteit van de onderwerpen</div>
+                </div>
+                <button onClick={laadNieuws} style={{ background: "none", border: `1px solid ${C.cyanDark}`, color: C.cyanDark, padding: "6px 14px", cursor: "pointer", fontSize: 10, fontFamily: "monospace", textTransform: "uppercase", letterSpacing: 1, whiteSpace: "nowrap" }}>
+                  {nieuwsStatus === "laden" ? "⏳ laden..." : "↺ Automatisch laden"}
+                </button>
+              </div>
               <textarea value={nieuws} onChange={e => setNieuws(e.target.value)}
-                style={{ ...inp, minHeight: 100, resize: "vertical", lineHeight: 1.6, fontSize: 13, marginTop: 8 }}
-                placeholder="Nieuws wordt automatisch geladen..." />
-            </details>
+                style={{ ...inp, minHeight: 160, resize: "vertical", lineHeight: 1.8, fontSize: 13, background: C.surface }}
+                placeholder={"Plak hier nieuwskoppen van vandaag, één per regel. Bijvoorbeeld:
+
+- Kabinet presenteert Voorjaarsnota: bezuinigingen op zorg en onderwijs
+- Rechter fluit NCTV terug na omstreden terreurrapport
+- Woningmarkt koelt af: minder overbiedingen in Randstad
+
+Hoe actueler het nieuws, hoe scherper de onderwerpen."} />
+              {nieuwsStatus === "fout" && <div style={{ fontSize: 11, color: "#ff6b6b", fontFamily: "monospace", marginTop: 6 }}>⚠ Automatisch laden mislukt — plak zelf koppen in</div>}
+            </div>
 
             {/* FLOW 1: GAST CENTRAAL */}
             {flow === "gast" && (
